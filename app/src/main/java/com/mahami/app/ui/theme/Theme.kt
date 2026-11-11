@@ -76,8 +76,13 @@ fun MahamiTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    // The app is fully Arabic: force RTL layout direction everywhere.
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+    // The app is fully Arabic: force RTL layout direction everywhere,
+    // and provide the priority-circle / overdue colors (Todoist style),
+    // reachable via MaterialTheme.extendedColors.
+    CompositionLocalProvider(
+        LocalLayoutDirection provides LayoutDirection.Rtl,
+        LocalExtendedColors provides if (darkTheme) DarkExtendedColors else LightExtendedColors,
+    ) {
         MaterialTheme(
             colorScheme = if (darkTheme) DarkColors else LightColors,
             typography = MahamiTypography,

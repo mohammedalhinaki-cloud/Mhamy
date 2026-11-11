@@ -9,7 +9,16 @@ A personal Arabic (RTL) to-do app. Local-only, no accounts, no sync.
 - DataStore (settings) — added when the first setting appears
 - Jetpack Glance (widget) — added in Stage 6
 - minSdk 26 / targetSdk 35 — java.time for dates (Hijri via `HijrahChronology` in Stage 5)
-- Architecture: MVVM + Repository (`data` / `domain` / `ui` / `widget` / `reminder`)
+- Architecture: MVVM + Repository, packages `data` / `domain` / `ui` / `widget` / `reminder`
+  (`widget` and `reminder` exist as reserved packages until Stages 6–7)
+
+## UI conventions
+
+- Fully Arabic; RTL is forced via `MahamiTheme` (`LocalLayoutDirection`).
+- Directional icons (arrows) must come from `ui/components/RtlIcons`
+  (backed by `Icons.AutoMirrored.*`), never from `Icons.Filled.Arrow*` directly.
+- Priority circles / overdue accent: `MaterialTheme.extendedColors`
+  (see `ui/theme/ExtendedColors.kt`). Fixed brand colors, no Dynamic Color.
 
 ## Build
 
