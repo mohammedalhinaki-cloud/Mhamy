@@ -90,4 +90,8 @@ interface TaskDao {
         """
     )
     fun observeTasksForList(listId: Long): Flow<List<Task>>
+
+    /** Total number of tasks (any state) — small liveness probe for the MVVM chain. */
+    @Query("SELECT COUNT(*) FROM tasks")
+    fun observeTaskCount(): Flow<Int>
 }

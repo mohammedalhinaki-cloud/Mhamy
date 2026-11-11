@@ -39,6 +39,9 @@ class TaskRepository @Inject constructor(
 
     suspend fun getTask(id: Long): Task? = taskDao.getById(id)
 
+    /** Total number of tasks (any state) — small liveness probe for the MVVM chain. */
+    fun observeTaskCount(): Flow<Int> = taskDao.observeTaskCount()
+
     // ---------------- Tasks: writes ----------------
 
     suspend fun addTask(task: Task): Long = taskDao.insert(task)

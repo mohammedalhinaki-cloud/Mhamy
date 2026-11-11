@@ -22,13 +22,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 /**
- * Stage 1 placeholder screen: proves the app launches with theme, font and RTL wired up.
+ * Stage 1 placeholder screen: proves the app launches with theme, font, RTL,
+ * and the full MVVM chain (Room → Repository → ViewModel) wired up.
  * Will be replaced by the real 4-section bottom-bar navigation in Stage 2.
  */
 @Composable
-fun MahamiApp() {
+fun MahamiApp(viewModel: MainViewModel = hiltViewModel()) {
+    val taskCount by viewModel.taskCount.collectAsStateWithLifecycle()
+
     Scaffold { innerPadding ->
         // Light launch fade-in — the app's animation convention stays as subtle as this.
         var visible by remember { mutableStateOf(false) }
@@ -56,6 +61,13 @@ fun MahamiApp() {
                 Text(
                     text = "كل مهامك في مكان واحد",
                     style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                // Liveness probe: this number comes from Room via the Repository + ViewModel.
+                Text(
+                    text = "المهام المحفوظة: $taskCount",
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
