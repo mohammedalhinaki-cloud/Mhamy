@@ -4,17 +4,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /**
  * The single place for DIRECTIONAL icons.
  *
  * Rule for every screen in this app: never use `Icons.Filled.Arrow*` /
- * `KeyboardArrow*` directly — always use these aliases. They are backed by
- * `Icons.AutoMirrored.*`, which automatically flips when the layout direction
- * is RTL (the whole app is RTL), so arrows always point the correct way.
+ * `KeyboardArrow*` / `Send` directly — always use these aliases. They are
+ * backed by `Icons.AutoMirrored.*`, which automatically flips when the layout
+ * direction is RTL (the whole app is RTL), so arrows always point the correct
+ * way.
  *
- * Non-directional icons (Add, Check, Calendar, …) can be used as-is.
+ * Non-directional icons (Add, Check, Calendar, Flag, …) can be used as-is.
  */
 object RtlIcons {
 
@@ -26,4 +28,7 @@ object RtlIcons {
 
     /** Arrow pointing "forward" (toward content end). */
     val NavigateNext: ImageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight
+
+    /** Send / submit arrow. */
+    val Send: ImageVector = Icons.AutoMirrored.Filled.Send
 }

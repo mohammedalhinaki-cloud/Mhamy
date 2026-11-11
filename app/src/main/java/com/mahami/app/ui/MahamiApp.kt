@@ -1,76 +1,86 @@
 package com.mahami.app.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.EventNote
+import androidx.compose.material.icons.filled.FormatListBulleted
+import androidx.compose.material.icons.filled.Today
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.mahami.app.ui.components.ComingSoonSection
+import com.mahami.app.ui.quickadd.QuickAddSheet
+import com.mahami.app.ui.today.TodayScreen
+
+private data class BottomSection(val label: String, val icon: ImageVector)
+
+private val bottomSections = listOf(
+    BottomSection("اليوم", Icons.Filled.Today),
+    BottomSection("القادمة", Icons.Filled.EventNote),
+    BottomSection("التقويم", Icons.Filled.CalendarMonth),
+    BottomSection("القوائم", Icons.Filled.FormatListBulleted),
+)
 
 /**
- * Stage 1 placeholder screen: proves the app launches with theme, font, RTL,
- * and the full MVVM chain (Room → Repository → ViewModel) wired up.
- * Will be replaced by the real 4-section bottom-bar navigation in Stage 2.
+ * App root: 4-section bottom bar + a fixed (+) FAB visible on all sections,
+ * hosting the quick-add bottom sheet and the shared Snackbar.
+ * Four fixed sections with no deep links → plain state switching, no
+ * Navigation library (simplest option).
  */
 @Composable
-fun MahamiApp(viewModel: MainViewModel = hiltViewModel()) {
-    val taskCount by viewModel.taskCount.collectAsStateWithLifecycle()
+fun MahamiApp() {
+    var selectedSection by rememberSaveable { mutableIntStateOf(0) }
+    var showQuickAdd by rememberSaveable { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    Scaffold { innerPadding ->
-        // Light launch fade-in — the app's animation convention stays as subtle as this.
-        var visible by remember { mutableStateOf(false) }
-        LaunchedEffect(Unit) { visible = true }
-
-        AnimatedVisibility(
-            visible = visible,
-            enter = fadeIn(animationSpec = tween(durationMillis = 500)),
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-        ) {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Text(
-                    text = "مهامي",
-                    style = MaterialTheme.typography.displayMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "كل مهامك في مكان واحد",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-                // Liveness probe: this number comes from Room via the Repository + ViewModel.
-                Text(
-                    text = "المهام المحفوظة: $taskCount",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = {
+            NavigationBar {
+                bottomSections.forEachIndexed { index, section ->
+                    NavigationBarItem(
+                        selected = selectedSection == index,
+                        onClick = { selectedSection = index },
+                        icon = { Icon(section.icon, contentDescription = section.label) },
+                        label = { Text(section.label) },
+                    )
+                }
             }
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = { showQuickAdd = true }) {
+                Icon(Icons.Filled.Add, contentDescription = "إضافة مهمة")
+            }
+        },
+    ) { innerPadding ->
+        when (selectedSection) {
+            0 -> TodayScreen(
+                snackbarHostState = snackbarHostState,
+                modifier = Modifier.padding(innerPadding),
+            )
+            1 -> ComingSoonSection(title = "القادمة", modifier = Modifier.padding(innerPadding))
+            2 -> ComingSoonSection(title = "التقويم", modifier = Modifier.padding(innerPadding))
+            3 -> ComingSoonSection(title = "القوائم", modifier = Modifier.padding(innerPadding))
+        }
+
+        if (showQuickAdd) {
+            QuickAddSheet(onDismiss = { showQuickAdd = false })
         }
     }
 }
