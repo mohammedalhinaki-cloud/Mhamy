@@ -16,24 +16,18 @@ import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Notes
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -49,12 +43,12 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mahami.app.ui.components.ListPickerDialog
+import com.mahami.app.ui.components.MahamiDatePickerDialog
+import com.mahami.app.ui.components.MahamiTimePickerDialog
 import com.mahami.app.ui.components.RtlIcons
 import com.mahami.app.ui.theme.extendedColors
-import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalTime
-import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.delay
@@ -67,8 +61,7 @@ private val timeLabelFormatter: DateTimeFormatter =
 /**
  * Quick-add bottom sheet: opens with the keyboard ready, Enter saves the task
  * immediately and keeps the sheet open for the next one.
- * Option icons: date & time / priority / note. (List selection is added in
- * Stage 3, together with the Lists screens.)
+ * Option icons: date & time / list / priority / note.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,9 +70,11 @@ fun QuickAddSheet(
     viewModel: QuickAddViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val lists by viewModel.lists.collectAsStateWithLifecycle()
 
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
+    var showListPicker by remember { mutableStateOf(false) }
 
     val sheetState = rememberModalBottomSheetState()
     val focusRequester = remember { FocusRequester() }
@@ -167,6 +162,12 @@ fun QuickAddSheet(
                         )
                     }
                 }
+                // List
+                AssistChip(
+                    onClick = { showListPicker = true },
+                    label = { Text(lists.firstOrNull { it.id == state.listId }?.name ?: "قائمة") },
+                    leadingIcon = { Icon(Icons.Filled.List, contentDescription = null) },
+                )
                 // Priority
                 IconButton(onClick = viewModel::toggleImportant) {
                     Icon(
@@ -207,70 +208,27 @@ fun QuickAddSheet(
         }
     }
 
-    // ---- Date picker dialog ----
+    // ---- dialogs ----
     if (showDatePicker) {
-        val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = (state.date ?: LocalDate.now())
-                .atStartOfDay(ZoneOffset.UTC)
-                .toInstant()
-                .toEpochMilli(),
+        MahamiDatePickerDialog(
+            initialDate = state.date,
+            onConfirm = viewModel::setDate,
+            onDismiss = { showDatePicker = false },
         )
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        datePickerState.selectedDateMillis?.let { millis ->
-                            viewModel.setDate(
-                                Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate(),
-                            )
-                        }
-                        showDatePicker = false
-                    },
-                ) { Text("تأكيد") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("إلغاء") }
-            },
-        ) {
-            DatePicker(state = datePickerState)
-        }
     }
-
-    // ---- Time picker dialog ----
     if (showTimePicker && state.date != null) {
-        val now = LocalTime.now()
-        val timePickerState = rememberTimePickerState(
-            initialHour = state.time?.hour ?: now.hour,
-            initialMinute = state.time?.minute ?: now.minute,
-            is24Hour = true,
+        MahamiTimePickerDialog(
+            initialTime = state.time,
+            onConfirm = viewModel::setTime,
+            onDismiss = { showTimePicker = false },
         )
-        AlertDialog(
-            onDismissRequest = { showTimePicker = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.setTime(LocalTime.of(timePickerState.hour, timePickerState.minute))
-                        showTimePicker = false
-                    },
-                ) { Text("تأكيد") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showTimePicker = false }) { Text("إلغاء") }
-            },
-            text = {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    TimePicker(state = timePickerState)
-                    if (state.time != null) {
-                        TextButton(
-                            onClick = {
-                                viewModel.setTime(null)
-                                showTimePicker = false
-                            },
-                        ) { Text("بدون وقت") }
-                    }
-                }
-            },
+    }
+    if (showListPicker) {
+        ListPickerDialog(
+            lists = lists,
+            selectedListId = state.listId,
+            onSelect = viewModel::setList,
+            onDismiss = { showListPicker = false },
         )
     }
 }

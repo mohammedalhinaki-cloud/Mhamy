@@ -13,7 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,10 +24,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mahami.app.data.local.entity.Task
 import com.mahami.app.ui.theme.extendedColors
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -37,25 +42,32 @@ private val timeFormatter: DateTimeFormatter =
  * A single task row (Todoist style): priority-colored completion circle,
  * title, and optional date/time meta-line. Ends with a hairline divider.
  *
- * @param showDate when true (Overdue section / other-day contexts) the task's
- * date is shown in the overdue accent color; otherwise only the time is shown.
+ * @param showDate when true (Overdue section) the task's date is shown in the
+ * overdue accent color; otherwise only the time is shown.
+ * @param completedLook true on the Completed screen: filled check circle,
+ * struck-through title, meta shows the completion date; onCompleteClick then
+ * means "restore".
  */
 @Composable
 fun TaskItem(
     task: Task,
     showDate: Boolean,
     onCompleteClick: () -> Unit,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    completedLook: Boolean = false,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .clickable(onClick = onClick)
                 .padding(vertical = 10.dp),
             verticalAlignment = Alignment.Top,
         ) {
             PriorityCircle(
                 isImportant = task.isImportant,
+                filled = completedLook,
                 onClick = onCompleteClick,
                 modifier = Modifier.padding(top = 2.dp),
             )
@@ -64,11 +76,16 @@ fun TaskItem(
                 Text(
                     text = task.title,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = if (completedLook) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                    textDecoration = if (completedLook) TextDecoration.LineThrough else null,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                val metaText = buildMetaText(task, showDate)
+                val metaText = buildMetaText(task, showDate, completedLook)
                 if (metaText != null) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
@@ -90,12 +107,16 @@ fun TaskItem(
     }
 }
 
-/** Todoist-style outlined completion circle; red for Important, gray for Normal. */
+/**
+ * Todoist-style completion circle; red for Important, gray for Normal.
+ * [filled] shows the completed state (solid circle + white check).
+ */
 @Composable
 fun PriorityCircle(
     isImportant: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    filled: Boolean = false,
 ) {
     val color = if (isImportant) {
         MaterialTheme.extendedColors.priorityImportant
@@ -113,15 +134,36 @@ fun PriorityCircle(
             modifier = Modifier
                 .size(22.dp)
                 .background(
-                    color = if (isImportant) color.copy(alpha = 0.10f) else Color.Transparent,
+                    color = when {
+                        filled -> color
+                        isImportant -> color.copy(alpha = 0.10f)
+                        else -> Color.Transparent
+                    },
                     shape = CircleShape,
                 )
                 .border(width = 2.dp, color = color, shape = CircleShape),
-        )
+            contentAlignment = Alignment.Center,
+        ) {
+            if (filled) {
+                Icon(
+                    imageVector = Icons.Filled.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
+        }
     }
 }
 
-private fun buildMetaText(task: Task, showDate: Boolean): String? {
+private fun buildMetaText(task: Task, showDate: Boolean, completedLook: Boolean): String? {
+    if (completedLook) {
+        val completedDay = task.completedAt
+            ?.atZone(ZoneId.systemDefault())
+            ?.toLocalDate()
+            ?: return null
+        return "أُنجزت ${completedDay.format(shortDateFormatter)}"
+    }
     val parts = mutableListOf<String>()
     if (showDate && task.dueDate != null) parts += task.dueDate.format(shortDateFormatter)
     task.dueTime?.let { parts += it.format(timeFormatter) }

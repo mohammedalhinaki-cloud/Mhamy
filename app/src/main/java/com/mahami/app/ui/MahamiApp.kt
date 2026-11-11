@@ -25,8 +25,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.mahami.app.ui.components.ComingSoonSection
+import com.mahami.app.ui.lists.ListsScreen
 import com.mahami.app.ui.quickadd.QuickAddSheet
 import com.mahami.app.ui.today.TodayScreen
+import com.mahami.app.ui.upcoming.UpcomingScreen
 
 private data class BottomSection(val label: String, val icon: ImageVector)
 
@@ -74,9 +76,15 @@ fun MahamiApp() {
                 snackbarHostState = snackbarHostState,
                 modifier = Modifier.padding(innerPadding),
             )
-            1 -> ComingSoonSection(title = "القادمة", modifier = Modifier.padding(innerPadding))
+            1 -> UpcomingScreen(
+                snackbarHostState = snackbarHostState,
+                modifier = Modifier.padding(innerPadding),
+            )
             2 -> ComingSoonSection(title = "التقويم", modifier = Modifier.padding(innerPadding))
-            3 -> ComingSoonSection(title = "القوائم", modifier = Modifier.padding(innerPadding))
+            3 -> ListsScreen(
+                snackbarHostState = snackbarHostState,
+                modifier = Modifier.padding(innerPadding),
+            )
         }
 
         if (showQuickAdd) {

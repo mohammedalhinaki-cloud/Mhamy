@@ -16,13 +16,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -31,11 +32,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mahami.app.data.local.entity.Task
 import com.mahami.app.ui.components.TaskItem
+import com.mahami.app.ui.components.completeTaskWithUndo
+import com.mahami.app.ui.taskedit.TaskEditSheet
 import com.mahami.app.ui.theme.extendedColors
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlinx.coroutines.launch
 
 private val headerDateFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("EEEE، d MMMM", Locale("ar"))
@@ -43,6 +45,7 @@ private val headerDateFormatter: DateTimeFormatter =
 /**
  * "Today" section: Overdue group (distinct color) on top, today's tasks below,
  * plus a small remaining-count summary in the header.
+ * Tapping a task opens the edit sheet; tapping the circle completes with Undo.
  */
 @Composable
 fun TodayScreen(
@@ -52,21 +55,10 @@ fun TodayScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+    var editingTaskId by rememberSaveable { mutableLongStateOf(-1L) }
 
-    /** One-tap completion with a Snackbar offering "Undo". */
-    fun completeWithUndo(task: Task) {
-        scope.launch {
-            viewModel.setCompleted(task.id, true)
-            val result = snackbarHostState.showSnackbar(
-                message = "تم إنجاز المهمة",
-                actionLabel = "تراجع",
-                duration = SnackbarDuration.Short,
-            )
-            if (result == SnackbarResult.ActionPerformed) {
-                viewModel.setCompleted(task.id, false)
-            }
-        }
-    }
+    fun complete(task: Task) =
+        completeTaskWithUndo(scope, snackbarHostState, task.id, viewModel::setCompleted)
 
     val remainingCount = uiState.overdue.size + uiState.today.size
 
@@ -122,7 +114,8 @@ fun TodayScreen(
                 TaskItem(
                     task = task,
                     showDate = true,
-                    onCompleteClick = { completeWithUndo(task) },
+                    onCompleteClick = { complete(task) },
+                    onClick = { editingTaskId = task.id },
                     modifier = Modifier.animateItem(),
                 )
             }
@@ -168,9 +161,14 @@ fun TodayScreen(
             TaskItem(
                 task = task,
                 showDate = false,
-                onCompleteClick = { completeWithUndo(task) },
+                onCompleteClick = { complete(task) },
+                onClick = { editingTaskId = task.id },
                 modifier = Modifier.animateItem(),
             )
         }
+    }
+
+    if (editingTaskId != -1L) {
+        TaskEditSheet(taskId = editingTaskId, onDismiss = { editingTaskId = -1L })
     }
 }
