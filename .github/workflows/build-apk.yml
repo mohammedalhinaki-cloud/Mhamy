@@ -76,7 +76,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tail -n 180 gradle-build.log > diagnostic-notes.txt
+          if ! grep -E -C 2 '(^e: |error:|\.kt:[[:digit:]]+)' gradle-build.log > diagnostic-notes.txt; then
+            tail -n 180 gradle-build.log > diagnostic-notes.txt
+          fi
           gh release delete build-diagnostic --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" || true
           gh release create build-diagnostic \
             --target "$GITHUB_SHA" \
