@@ -2,6 +2,7 @@ package com.mahami.app.ui.upcoming
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mahami.app.data.local.dao.SubtaskCount
 import com.mahami.app.data.local.entity.Task
 import com.mahami.app.data.repository.TaskRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -22,6 +23,7 @@ data class UpcomingDayGroup(
 data class UpcomingUiState(
     val dayGroups: List<UpcomingDayGroup> = emptyList(),
     val noDate: List<Task> = emptyList(),
+    val subtaskCounts: Map<Long, SubtaskCount> = emptyMap(),
     val isLoading: Boolean = true,
 )
 
@@ -37,7 +39,8 @@ class UpcomingViewModel @Inject constructor(
         combine(
             repository.observeUpcoming(today),
             repository.observeNoDate(),
-        ) { upcoming, noDate ->
+            repository.observeSubtaskCounts(),
+        ) { upcoming, noDate, counts ->
             UpcomingUiState(
                 // The query is already ordered by date, so the LinkedHashMap
                 // grouping below preserves ascending day order automatically.
@@ -45,6 +48,7 @@ class UpcomingViewModel @Inject constructor(
                     .groupBy { it.dueDate }
                     .mapNotNull { (date, tasks) -> date?.let { UpcomingDayGroup(it, tasks) } },
                 noDate = noDate,
+                subtaskCounts = counts.associateBy { it.taskId },
                 isLoading = false,
             )
         }.stateIn(

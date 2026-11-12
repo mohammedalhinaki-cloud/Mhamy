@@ -2,6 +2,7 @@ package com.mahami.app.di
 
 import android.content.Context
 import androidx.room.Room
+import com.mahami.app.data.local.MIGRATION_1_2
 import com.mahami.app.data.local.MahamiDatabase
 import com.mahami.app.data.local.dao.SubTaskDao
 import com.mahami.app.data.local.dao.TaskDao
@@ -20,7 +21,9 @@ object AppModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): MahamiDatabase =
-        Room.databaseBuilder(context, MahamiDatabase::class.java, "mahami.db").build()
+        Room.databaseBuilder(context, MahamiDatabase::class.java, "mahami.db")
+            .addMigrations(MIGRATION_1_2)
+            .build()
 
     @Provides
     fun provideTaskDao(database: MahamiDatabase): TaskDao = database.taskDao()

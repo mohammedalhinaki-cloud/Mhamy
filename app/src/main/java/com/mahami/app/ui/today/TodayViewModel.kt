@@ -2,6 +2,7 @@ package com.mahami.app.ui.today
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mahami.app.data.local.dao.SubtaskCount
 import com.mahami.app.data.local.entity.Task
 import com.mahami.app.data.repository.TaskRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -16,6 +17,7 @@ import kotlinx.coroutines.launch
 data class TodayUiState(
     val overdue: List<Task> = emptyList(),
     val today: List<Task> = emptyList(),
+    val subtaskCounts: Map<Long, SubtaskCount> = emptyMap(),
     val isLoading: Boolean = true,
 )
 
@@ -36,8 +38,14 @@ class TodayViewModel @Inject constructor(
         combine(
             repository.observeOverdue(today),
             repository.observeTasksForDate(today),
-        ) { overdue, todayTasks ->
-            TodayUiState(overdue = overdue, today = todayTasks, isLoading = false)
+            repository.observeSubtaskCounts(),
+        ) { overdue, todayTasks, counts ->
+            TodayUiState(
+                overdue = overdue,
+                today = todayTasks,
+                subtaskCounts = counts.associateBy { it.taskId },
+                isLoading = false,
+            )
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),

@@ -126,6 +126,7 @@ fun UpcomingScreen(
                     onCompleteClick = { complete(task) },
                     onClick = { editingTaskId = task.id },
                     modifier = Modifier.animateItem(),
+                    subtaskProgress = uiState.subtaskCounts[task.id],
                 )
             }
             item(key = "gap_${group.date}") {
@@ -153,6 +154,7 @@ fun UpcomingScreen(
                     onCompleteClick = { complete(task) },
                     onClick = { editingTaskId = task.id },
                     modifier = Modifier.animateItem(),
+                    subtaskProgress = uiState.subtaskCounts[task.id],
                 )
             }
         }

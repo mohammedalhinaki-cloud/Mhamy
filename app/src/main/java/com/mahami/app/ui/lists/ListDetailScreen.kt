@@ -121,6 +121,7 @@ fun ListDetailScreen(
                     },
                     onClick = { editingTaskId = task.id },
                     modifier = Modifier.animateItem(),
+                    subtaskProgress = uiState.subtaskCounts[task.id],
                 )
             }
             if (!uiState.isLoading && uiState.tasks.isEmpty()) {

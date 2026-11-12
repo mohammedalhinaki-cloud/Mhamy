@@ -20,7 +20,7 @@ import java.time.LocalTime
             onDelete = ForeignKey.SET_NULL,
         ),
     ],
-    indices = [Index("listId"), Index("dueDate"), Index("isCompleted")],
+    indices = [Index("listId"), Index("dueDate"), Index("isCompleted"), Index("repeatedFromId")],
 )
 data class Task(
     @PrimaryKey(autoGenerate = true)
@@ -40,4 +40,12 @@ data class Task(
     /** Minutes before the task's date-time to fire the reminder. null = reminder off (default). */
     val reminderOffsetMinutes: Int? = null,
     val createdAt: Instant = Instant.now(),
+    /**
+     * For an auto-created repeat occurrence: id of the task whose completion
+     * spawned this row. null for normal tasks.
+     * (Indexed, but deliberately NOT a foreign key: occurrences stay valid standalone
+     * rows even if the original task is deleted, and restoring the original deletes
+     * its still-active occurrence via DAO query.)
+     */
+    val repeatedFromId: Long? = null,
 )

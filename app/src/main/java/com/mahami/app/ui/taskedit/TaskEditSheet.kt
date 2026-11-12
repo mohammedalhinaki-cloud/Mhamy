@@ -11,16 +11,26 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
@@ -29,6 +39,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -45,9 +56,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mahami.app.data.local.entity.SubTask
+import com.mahami.app.domain.model.RepeatType
 import com.mahami.app.ui.components.MahamiDatePickerDialog
 import com.mahami.app.ui.components.MahamiTimePickerDialog
 import com.mahami.app.ui.components.ListPickerDialog
@@ -63,8 +78,9 @@ private val timeLabelFormatter: DateTimeFormatter =
 
 /**
  * Task edit sheet (opened by tapping a task anywhere).
- * Edits title / notes / priority / date / time / list, offers snooze shortcuts
- * and delete. Auto-saves on dismiss and on «حفظ»; a blank title discards edits.
+ * Edits title / notes / priority / date / time / list / repeat; manages subtasks
+ * (one level); offers snooze shortcuts and delete.
+ * Auto-saves on dismiss and on «حفظ»; a blank title discards edits.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,6 +98,7 @@ fun TaskEditSheet(
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
     var showListPicker by remember { mutableStateOf(false) }
+    var showRepeatPicker by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     fun closeWithSave() = viewModel.save(onDone = onDismiss)
@@ -95,6 +112,7 @@ fun TaskEditSheet(
                 .fillMaxWidth()
                 .navigationBarsPadding()
                 .imePadding()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 16.dp),
         ) {
@@ -142,6 +160,60 @@ fun TaskEditSheet(
                     ),
                 )
 
+                // ---- subtasks (single level) ----
+                if (state.subtasks.isNotEmpty()) {
+                    val doneCount = state.subtasks.count { it.isCompleted }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "المهام الفرعية",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "$doneCount/${state.subtasks.size}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    state.subtasks.forEach { subTask ->
+                        SubTaskRow(
+                            subTask = subTask,
+                            onToggle = { viewModel.toggleSubtask(subTask) },
+                            onDelete = { viewModel.deleteSubtask(subTask) },
+                        )
+                    }
+                }
+                // ---- add subtask (Enter adds and keeps the field open) ----
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Filled.Add,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    TextField(
+                        value = state.subtaskInput,
+                        onValueChange = viewModel::onSubtaskInputChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("إضافة مهمة فرعية") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { viewModel.addSubtask() }),
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                        ),
+                    )
+                }
+
                 // ---- notes ----
                 TextField(
                     value = state.notes,
@@ -188,8 +260,13 @@ fun TaskEditSheet(
                     }
                     AssistChip(
                         onClick = { showListPicker = true },
-                        label = { Text(listLabel(lists.firstOrNull { it.id == state.listId }?.name)) },
+                        label = { Text(lists.firstOrNull { it.id == state.listId }?.name ?: "بدون قائمة") },
                         leadingIcon = { Icon(Icons.Filled.List, contentDescription = null) },
+                    )
+                    AssistChip(
+                        onClick = { showRepeatPicker = true },
+                        label = { Text(repeatLabel(state.repeatType)) },
+                        leadingIcon = { Icon(Icons.Filled.Repeat, contentDescription = null) },
                     )
                     IconButton(onClick = viewModel::toggleImportant) {
                         Icon(
@@ -263,11 +340,18 @@ fun TaskEditSheet(
             onDismiss = { showListPicker = false },
         )
     }
+    if (showRepeatPicker) {
+        RepeatPickerDialog(
+            selected = state.repeatType,
+            onSelect = viewModel::setRepeat,
+            onDismiss = { showRepeatPicker = false },
+        )
+    }
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text("حذف المهمة") },
-            text = { Text("سيتم حذف هذه المهمة نهائياً.") },
+            text = { Text("سيتم حذف هذه المهمة ومهامها الفرعية نهائياً.") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -283,6 +367,112 @@ fun TaskEditSheet(
     }
 }
 
+/** One subtask row: small circle toggle + title + delete (no nesting, no editing). */
+@Composable
+private fun SubTaskRow(
+    subTask: SubTask,
+    onToggle: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val circleColor = MaterialTheme.extendedColors.priorityNormal
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clickable(onClick = onToggle),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(18.dp)
+                    .background(
+                        color = if (subTask.isCompleted) circleColor else Color.Transparent,
+                        shape = CircleShape,
+                    )
+                    .border(width = 1.5.dp, color = circleColor, shape = CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (subTask.isCompleted) {
+                    Icon(
+                        Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.size(12.dp),
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = subTask.title,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (subTask.isCompleted) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+            textDecoration = if (subTask.isCompleted) TextDecoration.LineThrough else null,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onDelete) {
+            Icon(
+                Icons.Filled.Clear,
+                contentDescription = "حذف المهمة الفرعية",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+    }
+}
+
+/** Repeat picker: بدون تكرار / يومي / أسبوعي / شهري (Gregorian). */
+@Composable
+private fun RepeatPickerDialog(
+    selected: RepeatType,
+    onSelect: (RepeatType) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val options = listOf(RepeatType.NONE, RepeatType.DAILY, RepeatType.WEEKLY, RepeatType.MONTHLY)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("التكرار") },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("إغلاق") }
+        },
+        text = {
+            Column {
+                options.forEach { option ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onSelect(option)
+                                onDismiss()
+                            }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = selected == option,
+                            onClick = {
+                                onSelect(option)
+                                onDismiss()
+                            },
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = repeatLabel(option), style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        },
+    )
+}
+
 private fun dateLabel(date: LocalDate?): String {
     val today = LocalDate.now()
     return when (date) {
@@ -293,4 +483,9 @@ private fun dateLabel(date: LocalDate?): String {
     }
 }
 
-private fun listLabel(listName: String?): String = listName ?: "بدون قائمة"
+private fun repeatLabel(repeat: RepeatType): String = when (repeat) {
+    RepeatType.NONE -> "بدون تكرار"
+    RepeatType.DAILY -> "يومي"
+    RepeatType.WEEKLY -> "أسبوعي"
+    RepeatType.MONTHLY -> "شهري"
+}

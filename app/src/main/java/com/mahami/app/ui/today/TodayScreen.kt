@@ -117,6 +117,7 @@ fun TodayScreen(
                     onCompleteClick = { complete(task) },
                     onClick = { editingTaskId = task.id },
                     modifier = Modifier.animateItem(),
+                    subtaskProgress = uiState.subtaskCounts[task.id],
                 )
             }
             item(key = "overdue_gap") {
@@ -164,6 +165,7 @@ fun TodayScreen(
                 onCompleteClick = { complete(task) },
                 onClick = { editingTaskId = task.id },
                 modifier = Modifier.animateItem(),
+                subtaskProgress = uiState.subtaskCounts[task.id],
             )
         }
     }

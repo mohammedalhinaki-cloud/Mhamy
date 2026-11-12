@@ -13,20 +13,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.mahami.app.data.local.dao.SubtaskCount
 import com.mahami.app.data.local.entity.Task
 import com.mahami.app.ui.theme.extendedColors
 import java.time.ZoneId
@@ -40,13 +44,15 @@ private val timeFormatter: DateTimeFormatter =
 
 /**
  * A single task row (Todoist style): priority-colored completion circle,
- * title, and optional date/time meta-line. Ends with a hairline divider.
+ * title, subtask progress ("2/5" + mini progress bar), optional date/time
+ * meta-line. Ends with a hairline divider.
  *
  * @param showDate when true (Overdue section) the task's date is shown in the
  * overdue accent color; otherwise only the time is shown.
  * @param completedLook true on the Completed screen: filled check circle,
  * struck-through title, meta shows the completion date; onCompleteClick then
- * means "restore".
+ * means "restore" (subtask progress is hidden in this mode).
+ * @param subtaskProgress the parent's subtask progress, if it has subtasks.
  */
 @Composable
 fun TaskItem(
@@ -56,6 +62,7 @@ fun TaskItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     completedLook: Boolean = false,
+    subtaskProgress: SubtaskCount? = null,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
@@ -85,18 +92,44 @@ fun TaskItem(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+
                 val metaText = buildMetaText(task, showDate, completedLook)
-                if (metaText != null) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = metaText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (showDate) {
-                            MaterialTheme.extendedColors.overdue
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
+                val progress = if (completedLook) null else subtaskProgress?.takeIf { it.total > 0 }
+                if (metaText != null || progress != null) {
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (progress != null) {
+                            Text(
+                                text = "${progress.completed}/${progress.total}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            LinearProgressIndicator(
+                                progress = {
+                                    progress.completed.toFloat() / progress.total.toFloat()
+                                },
+                                modifier = Modifier
+                                    .width(44.dp)
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp)),
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.outlineVariant,
+                            )
+                            if (metaText != null) Spacer(modifier = Modifier.width(10.dp))
+                        }
+                        if (metaText != null) {
+                            Text(
+                                text = metaText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (showDate) {
+                                    MaterialTheme.extendedColors.overdue
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        }
+                    }
                 }
             }
         }

@@ -12,7 +12,7 @@ import com.mahami.app.data.local.entity.TaskList
 
 @Database(
     entities = [Task::class, SubTask::class, TaskList::class],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

@@ -94,4 +94,11 @@ interface TaskDao {
     /** Total number of tasks (any state) — small liveness probe for the MVVM chain. */
     @Query("SELECT COUNT(*) FROM tasks")
     fun observeTaskCount(): Flow<Int>
+
+    /**
+     * Deletes the repeat occurrences that were auto-created when [originId]
+     * was completed — used when that completion is undone (restore).
+     */
+    @Query("DELETE FROM tasks WHERE repeatedFromId = :originId")
+    suspend fun deleteOccurrencesSpawnedFrom(originId: Long)
 }
