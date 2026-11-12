@@ -39,7 +39,9 @@ jobs:
       - name: Assemble signed debug APK
         id: assemble
         continue-on-error: true
-        run: ./gradlew --no-daemon assembleDebug --stacktrace 2>&1 | tee gradle-build.log
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon assembleDebug --stacktrace 2>&1 | tee gradle-build.log
 
       - name: Publish APK artifact
         if: steps.assemble.outcome == 'success'
