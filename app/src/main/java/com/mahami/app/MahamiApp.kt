@@ -594,7 +594,7 @@ private fun AddTaskDialog(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                text = formatDateTime(dueAt),
+                                text = formatDateTime(dueAt!!),
                                 modifier = Modifier.weight(1f),
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                             )

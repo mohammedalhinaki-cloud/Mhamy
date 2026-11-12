@@ -57,6 +57,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          gh release delete build-diagnostic --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" || true
           tag="v1.2.0"
           asset="Mahami-v1.2.apk"
           cp app/build/outputs/apk/debug/app-debug.apk "$asset"
