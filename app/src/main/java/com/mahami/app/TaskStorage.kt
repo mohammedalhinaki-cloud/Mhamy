@@ -38,8 +38,8 @@ class TaskStorage(context: Context) {
 
     fun write(data: MahamiData) {
         preferences.edit()
-            .putString(TASKS_KEY, data.tasks.toJsonArray().toString())
-            .putString(CATEGORIES_KEY, data.categories.toJsonArray().toString())
+            .putString(TASKS_KEY, data.tasks.toTasksJsonArray().toString())
+            .putString(CATEGORIES_KEY, data.categories.toCategoriesJsonArray().toString())
             .apply()
     }
 
@@ -83,7 +83,7 @@ class TaskStorage(context: Context) {
         }
     }.getOrDefault(emptyList())
 
-    private fun List<Task>.toJsonArray() = JSONArray().also { array ->
+    private fun List<Task>.toTasksJsonArray() = JSONArray().also { array ->
         forEach { task ->
             array.put(
                 JSONObject().apply {
@@ -97,7 +97,7 @@ class TaskStorage(context: Context) {
         }
     }
 
-    private fun List<Category>.toJsonArray() = JSONArray().also { array ->
+    private fun List<Category>.toCategoriesJsonArray() = JSONArray().also { array ->
         forEach { category ->
             array.put(
                 JSONObject().apply {
