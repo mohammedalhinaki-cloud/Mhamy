@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Single-color companion used by Android's themed launcher icons. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="4"
+        android:strokeLineJoin="round"
+        android:pathData="M39,25 L75,25 Q83,25 83,33 L83,73 Q83,81 75,81 L39,81 Q31,81 31,73 L31,33 Q31,25 39,25 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M41,60 L50,69 L72,54" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M55,35 L72,35 Q75,35 75,38 Q75,41 72,41 L55,41 Q52,41 52,38 Q52,35 55,35 Z" />
+</vector>
