@@ -37,9 +37,14 @@ jobs:
         run: chmod +x gradlew
 
       - name: Assemble signed debug APK
-        run: ./gradlew --no-daemon assembleDebug
+        id: assemble
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon assembleDebug --stacktrace 2>&1 | tee gradle-build.log
 
       - name: Publish APK artifact
+        if: steps.assemble.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: Mahami-v1.2-debug-apk
@@ -48,6 +53,7 @@ jobs:
           retention-days: 90
 
       - name: Publish downloadable APK release
+        if: steps.assemble.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -64,3 +70,22 @@ jobs:
               --notes "ثلاث تبويبات: مهامي مع فلاتر التصنيفات، مهام بموعد، وتقويم شهري بنقاط ملوّنة." \
               --repo "$GITHUB_REPOSITORY"
           fi
+
+      - name: Publish build diagnostic
+        if: steps.assemble.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! grep -E -C 2 '(^e: |error:|\.kt:[[:digit:]]+)' gradle-build.log > diagnostic-notes.txt; then
+            tail -n 180 gradle-build.log > diagnostic-notes.txt
+          fi
+          gh release delete build-diagnostic --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" || true
+          gh release create build-diagnostic \
+            --target "$GITHUB_SHA" \
+            --title "Temporary Android build diagnostic" \
+            --notes-file diagnostic-notes.txt \
+            --repo "$GITHUB_REPOSITORY"
+
+      - name: Fail when the APK build failed
+        if: steps.assemble.outcome == 'failure'
+        run: exit 1
