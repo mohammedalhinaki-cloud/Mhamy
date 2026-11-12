@@ -70,7 +70,10 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
+import java.time.chrono.HijrahChronology
+import java.time.chrono.HijrahDate
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoField
 import java.util.Calendar
 import java.util.Locale
 
@@ -78,6 +81,11 @@ private enum class AppTab(val label: String, val symbol: String) {
     TASKS("مهامي", "✓"),
     SCHEDULED("بموعد", "◷"),
     CALENDAR("التقويم", "▦"),
+}
+
+private enum class CalendarMode {
+    GREGORIAN,
+    HIJRI,
 }
 
 @Composable
@@ -664,9 +672,19 @@ private fun CalendarScreen(
     onTaskUpdated: (Task) -> Unit,
     onTaskDeleted: (Long) -> Unit,
 ) {
-    var displayedMonthText by rememberSaveable { mutableStateOf(YearMonth.now().toString()) }
+    val todayHijri = remember { HijrahChronology.INSTANCE.dateNow() }
+    var calendarModeName by rememberSaveable { mutableStateOf(CalendarMode.GREGORIAN.name) }
+    var displayedGregorianMonthText by rememberSaveable { mutableStateOf(YearMonth.now().toString()) }
+    var displayedHijriYear by rememberSaveable {
+        mutableStateOf(todayHijri.get(ChronoField.YEAR_OF_ERA))
+    }
+    var displayedHijriMonth by rememberSaveable {
+        mutableStateOf(todayHijri.get(ChronoField.MONTH_OF_YEAR))
+    }
     var selectedDateText by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
-    val displayedMonth = YearMonth.parse(displayedMonthText)
+
+    val calendarMode = CalendarMode.valueOf(calendarModeName)
+    val displayedGregorianMonth = YearMonth.parse(displayedGregorianMonthText)
     val selectedDate = LocalDate.parse(selectedDateText)
     val datedTasks = tasks.filter { it.dueAt != null }
     val tasksByDate = remember(datedTasks) {
@@ -674,10 +692,19 @@ private fun CalendarScreen(
     }
     val categoryById = remember(categories) { categories.associateBy { it.id } }
 
-    fun changeMonth(monthDelta: Long) {
-        val nextMonth = displayedMonth.plusMonths(monthDelta)
-        displayedMonthText = nextMonth.toString()
+    fun changeGregorianMonth(monthDelta: Long) {
+        val nextMonth = displayedGregorianMonth.plusMonths(monthDelta)
+        displayedGregorianMonthText = nextMonth.toString()
         selectedDateText = nextMonth.atDay(1).toString()
+    }
+
+    fun changeHijriMonth(monthDelta: Int) {
+        val monthIndex = displayedHijriYear * 12 + displayedHijriMonth - 1 + monthDelta
+        displayedHijriYear = monthIndex / 12
+        displayedHijriMonth = monthIndex % 12 + 1
+        selectedDateText = hijriDate(displayedHijriYear, displayedHijriMonth, 1)
+            .toGregorianDate()
+            .toString()
     }
 
     Column(
@@ -690,25 +717,57 @@ private fun CalendarScreen(
     ) {
         ScreenHeading(
             title = "التقويم",
-            subtitle = "النقاط الملوّنة تمثل المهام التي لها موعد.",
+            subtitle = "اختر نوع التقويم؛ تظهر النقاط الملوّنة للمهام ذات الموعد.",
             actionLabel = "إضافة موعد",
             onAction = onAddTask,
         )
-        MonthHeader(
-            month = displayedMonth,
-            onPrevious = { changeMonth(-1) },
-            onNext = { changeMonth(1) },
+        CalendarModeFilter(
+            mode = calendarMode,
+            onModeChanged = { calendarModeName = it.name },
         )
-        CalendarGrid(
-            month = displayedMonth,
-            selectedDate = selectedDate,
-            tasksByDate = tasksByDate,
-            categoryById = categoryById,
-            onDateSelected = { selectedDateText = it.toString() },
-        )
+
+        when (calendarMode) {
+            CalendarMode.GREGORIAN -> {
+                MonthHeader(
+                    title = displayedGregorianMonth.format(
+                        DateTimeFormatter.ofPattern("MMMM yyyy", arabicLocale),
+                    ),
+                    onPrevious = { changeGregorianMonth(-1) },
+                    onNext = { changeGregorianMonth(1) },
+                )
+                GregorianCalendarGrid(
+                    month = displayedGregorianMonth,
+                    selectedDate = selectedDate,
+                    tasksByDate = tasksByDate,
+                    categoryById = categoryById,
+                    onDateSelected = { selectedDateText = it.toString() },
+                )
+            }
+
+            CalendarMode.HIJRI -> {
+                MonthHeader(
+                    title = hijriMonthLabel(displayedHijriYear, displayedHijriMonth),
+                    onPrevious = { changeHijriMonth(-1) },
+                    onNext = { changeHijriMonth(1) },
+                )
+                HijriCalendarGrid(
+                    year = displayedHijriYear,
+                    month = displayedHijriMonth,
+                    selectedDate = selectedDate,
+                    tasksByDate = tasksByDate,
+                    categoryById = categoryById,
+                    onDateSelected = { selectedDateText = it.toString() },
+                )
+            }
+        }
+
         HorizontalDivider()
         SelectedDateTasks(
-            date = selectedDate,
+            heading = if (calendarMode == CalendarMode.HIJRI) {
+                formatHijriDate(selectedDate)
+            } else {
+                formatGregorianDate(selectedDate)
+            },
             tasks = tasksByDate[selectedDate].orEmpty(),
             categoryById = categoryById,
             onTaskUpdated = onTaskUpdated,
@@ -718,8 +777,27 @@ private fun CalendarScreen(
 }
 
 @Composable
+private fun CalendarModeFilter(
+    mode: CalendarMode,
+    onModeChanged: (CalendarMode) -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip(
+            selected = mode == CalendarMode.GREGORIAN,
+            onClick = { onModeChanged(CalendarMode.GREGORIAN) },
+            label = { Text("ميلادي") },
+        )
+        FilterChip(
+            selected = mode == CalendarMode.HIJRI,
+            onClick = { onModeChanged(CalendarMode.HIJRI) },
+            label = { Text("هجري أم القرى") },
+        )
+    }
+}
+
+@Composable
 private fun MonthHeader(
-    month: YearMonth,
+    title: String,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
 ) {
@@ -729,7 +807,7 @@ private fun MonthHeader(
     ) {
         TextButton(onClick = onPrevious) { Text("السابق") }
         Text(
-            text = month.format(DateTimeFormatter.ofPattern("MMMM yyyy", arabicLocale)),
+            text = title,
             modifier = Modifier.weight(1f),
             textAlign = TextAlign.Center,
             style = MaterialTheme.typography.titleMedium,
@@ -739,18 +817,69 @@ private fun MonthHeader(
     }
 }
 
+private data class CalendarDay(
+    val date: LocalDate,
+    val label: String,
+)
+
 @Composable
-private fun CalendarGrid(
+private fun GregorianCalendarGrid(
     month: YearMonth,
     selectedDate: LocalDate,
     tasksByDate: Map<LocalDate, List<Task>>,
     categoryById: Map<Long, Category>,
     onDateSelected: (LocalDate) -> Unit,
 ) {
-    val leadingEmptyCells = month.atDay(1).dayOfWeek.value % 7 // Sunday is the first column.
-    val paddedCells = buildList<LocalDate?> {
+    val days = (1..month.lengthOfMonth()).map { day ->
+        val date = month.atDay(day)
+        CalendarDay(date = date, label = day.toString())
+    }
+    MonthCalendarGrid(
+        leadingEmptyCells = month.atDay(1).dayOfWeek.value % 7,
+        days = days,
+        selectedDate = selectedDate,
+        tasksByDate = tasksByDate,
+        categoryById = categoryById,
+        onDateSelected = onDateSelected,
+    )
+}
+
+@Composable
+private fun HijriCalendarGrid(
+    year: Int,
+    month: Int,
+    selectedDate: LocalDate,
+    tasksByDate: Map<LocalDate, List<Task>>,
+    categoryById: Map<Long, Category>,
+    onDateSelected: (LocalDate) -> Unit,
+) {
+    val firstDay = hijriDate(year, month, 1)
+    val days = (1..firstDay.lengthOfMonth()).map { day ->
+        val hijriDay = hijriDate(year, month, day)
+        CalendarDay(date = hijriDay.toGregorianDate(), label = day.toString())
+    }
+    MonthCalendarGrid(
+        leadingEmptyCells = firstDay.toGregorianDate().dayOfWeek.value % 7,
+        days = days,
+        selectedDate = selectedDate,
+        tasksByDate = tasksByDate,
+        categoryById = categoryById,
+        onDateSelected = onDateSelected,
+    )
+}
+
+@Composable
+private fun MonthCalendarGrid(
+    leadingEmptyCells: Int,
+    days: List<CalendarDay>,
+    selectedDate: LocalDate,
+    tasksByDate: Map<LocalDate, List<Task>>,
+    categoryById: Map<Long, Category>,
+    onDateSelected: (LocalDate) -> Unit,
+) {
+    val paddedCells = buildList<CalendarDay?> {
         repeat(leadingEmptyCells) { add(null) }
-        (1..month.lengthOfMonth()).forEach { add(month.atDay(it)) }
+        addAll(days)
         while (size % 7 != 0) add(null)
     }
 
@@ -771,18 +900,19 @@ private fun CalendarGrid(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                week.forEach { date ->
-                    if (date == null) {
+                week.forEach { day ->
+                    if (day == null) {
                         Spacer(modifier = Modifier.weight(1f))
                     } else {
                         CalendarDayCell(
-                            date = date,
-                            isSelected = date == selectedDate,
-                            isToday = date == LocalDate.now(),
-                            tasks = tasksByDate[date].orEmpty(),
+                            date = day.date,
+                            label = day.label,
+                            isSelected = day.date == selectedDate,
+                            isToday = day.date == LocalDate.now(),
+                            tasks = tasksByDate[day.date].orEmpty(),
                             categoryById = categoryById,
                             modifier = Modifier.weight(1f),
-                            onClick = { onDateSelected(date) },
+                            onClick = { onDateSelected(day.date) },
                         )
                     }
                 }
@@ -794,6 +924,7 @@ private fun CalendarGrid(
 @Composable
 private fun CalendarDayCell(
     date: LocalDate,
+    label: String,
     isSelected: Boolean,
     isToday: Boolean,
     tasks: List<Task>,
@@ -827,7 +958,7 @@ private fun CalendarDayCell(
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                text = date.dayOfMonth.toString(),
+                text = label,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
             )
@@ -850,7 +981,7 @@ private fun CalendarDayCell(
 
 @Composable
 private fun SelectedDateTasks(
-    date: LocalDate,
+    heading: String,
     tasks: List<Task>,
     categoryById: Map<Long, Category>,
     onTaskUpdated: (Task) -> Unit,
@@ -858,7 +989,7 @@ private fun SelectedDateTasks(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            text = date.format(DateTimeFormatter.ofPattern("EEEE، d MMMM", arabicLocale)),
+            text = heading,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
         )
@@ -937,6 +1068,27 @@ private fun showDateTimePicker(
 private fun Long.toLocalDate(): LocalDate =
     Instant.ofEpochMilli(this).atZone(ZoneId.systemDefault()).toLocalDate()
 
+/** Android's built-in Hijrah chronology uses the Umm al-Qura calendar data. */
+private fun hijriDate(year: Int, month: Int, day: Int): HijrahDate =
+    HijrahChronology.INSTANCE.date(year, month, day)
+
+private fun HijrahDate.toGregorianDate(): LocalDate = LocalDate.ofEpochDay(toEpochDay())
+
+private fun hijriMonthLabel(year: Int, month: Int): String =
+    "${hijriMonthNames[month - 1]} $year هـ"
+
+private fun formatGregorianDate(date: LocalDate): String =
+    date.format(DateTimeFormatter.ofPattern("EEEE، d MMMM", arabicLocale))
+
+private fun formatHijriDate(date: LocalDate): String {
+    val hijriDate = HijrahChronology.INSTANCE.date(date)
+    val year = hijriDate.get(ChronoField.YEAR_OF_ERA)
+    val month = hijriDate.get(ChronoField.MONTH_OF_YEAR)
+    val day = hijriDate.get(ChronoField.DAY_OF_MONTH)
+    val weekday = date.format(DateTimeFormatter.ofPattern("EEEE", arabicLocale))
+    return "$weekday، $day ${hijriMonthNames[month - 1]} $year هـ"
+}
+
 private fun formatDateTime(time: Long): String =
     Instant.ofEpochMilli(time)
         .atZone(ZoneId.systemDefault())
@@ -944,6 +1096,20 @@ private fun formatDateTime(time: Long): String =
 
 private val arabicLocale = Locale("ar", "SA")
 private val arabicWeekdays = listOf("أحد", "اثن", "ثلا", "أرب", "خمي", "جمع", "سبت")
+private val hijriMonthNames = listOf(
+    "محرم",
+    "صفر",
+    "ربيع الأول",
+    "ربيع الآخر",
+    "جمادى الأولى",
+    "جمادى الآخرة",
+    "رجب",
+    "شعبان",
+    "رمضان",
+    "شوال",
+    "ذو القعدة",
+    "ذو الحجة",
+)
 
 @Composable
 private fun mahamiColorScheme() = if (androidx.compose.foundation.isSystemInDarkTheme()) {

@@ -47,7 +47,7 @@ jobs:
         if: steps.assemble.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: Mahami-v1.2-debug-apk
+          name: Mahami-v1.3-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 90
@@ -58,8 +58,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete build-diagnostic --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" || true
-          tag="v1.2.0"
-          asset="Mahami-v1.2.apk"
+          tag="v1.3.0"
+          asset="Mahami-v1.3.apk"
           cp app/build/outputs/apk/debug/app-debug.apk "$asset"
 
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -67,8 +67,8 @@ jobs:
           else
             gh release create "$tag" "$asset" \
               --target "$GITHUB_SHA" \
-              --title "مهامي 1.2.0 — التصنيفات والتقويم" \
-              --notes "ثلاث تبويبات: مهامي مع فلاتر التصنيفات، مهام بموعد، وتقويم شهري بنقاط ملوّنة." \
+              --title "مهامي 1.3.0 — التقويم الهجري أم القرى" \
+              --notes "فلتر أعلى التقويم للتبديل بين الميلادي والهجري أم القرى، مع نقاط المهام الملوّنة في كلا العرضين." \
               --repo "$GITHUB_REPOSITORY"
           fi
 
