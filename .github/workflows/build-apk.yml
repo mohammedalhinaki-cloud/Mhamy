@@ -42,7 +42,7 @@ jobs:
       - name: Publish APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Mahami-v1.1-debug-apk
+          name: Mahami-v1.2-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 90
@@ -51,8 +51,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="v1.1.0"
-          asset="Mahami-v1.1.apk"
+          tag="v1.2.0"
+          asset="Mahami-v1.2.apk"
           cp app/build/outputs/apk/debug/app-debug.apk "$asset"
 
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -60,7 +60,7 @@ jobs:
           else
             gh release create "$tag" "$asset" \
               --target "$GITHUB_SHA" \
-              --title "مهامي 1.1.0 — النسخة البسيطة" \
-              --notes "تطبيق بسيط لكتابة المهام وإنجازها وحذفها محلياً على الجهاز." \
+              --title "مهامي 1.2.0 — التصنيفات والتقويم" \
+              --notes "ثلاث تبويبات: مهامي مع فلاتر التصنيفات، مهام بموعد، وتقويم شهري بنقاط ملوّنة." \
               --repo "$GITHUB_REPOSITORY"
           fi
