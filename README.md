@@ -71,6 +71,11 @@ app/src/main/java/com/mahami/app/
 - Priority circles / overdue accent: `MaterialTheme.extendedColors`
   (see `ui/theme/ExtendedColors.kt`).
 
+## تنزيل APK
+
+يمكن تنزيل ملف APK الجاهز للتثبيت من صفحة [الإصدارات](https://github.com/mohammedalhinaki-cloud/Mhamy/releases/tag/v1.0.0):
+[`Mahami-v1.0.apk`](https://github.com/mohammedalhinaki-cloud/Mhamy/releases/download/v1.0.0/Mahami-v1.0.apk).
+
 ## Build
 
 Open in **Android Studio Ladybug (2024.2.1) or newer** (AGP 8.6.1, JDK 17),
