@@ -24,7 +24,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import com.mahami.app.ui.components.ComingSoonSection
+import com.mahami.app.ui.calendar.CalendarScreen
 import com.mahami.app.ui.lists.ListsScreen
 import com.mahami.app.ui.quickadd.QuickAddSheet
 import com.mahami.app.ui.today.TodayScreen
@@ -80,7 +80,10 @@ fun MahamiApp() {
                 snackbarHostState = snackbarHostState,
                 modifier = Modifier.padding(innerPadding),
             )
-            2 -> ComingSoonSection(title = "التقويم", modifier = Modifier.padding(innerPadding))
+            2 -> CalendarScreen(
+                snackbarHostState = snackbarHostState,
+                modifier = Modifier.padding(innerPadding),
+            )
             3 -> ListsScreen(
                 snackbarHostState = snackbarHostState,
                 modifier = Modifier.padding(innerPadding),

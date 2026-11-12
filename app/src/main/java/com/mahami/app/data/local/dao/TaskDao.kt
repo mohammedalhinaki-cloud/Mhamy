@@ -91,6 +91,19 @@ interface TaskDao {
     )
     fun observeTasksForList(listId: Long): Flow<List<Task>>
 
+    /**
+     * Incomplete tasks due anywhere inside [fromDate]..[toDate] inclusive —
+     * one query per displayed calendar month (day dots + selected-day list).
+     */
+    @Query(
+        """
+        SELECT * FROM tasks
+        WHERE isCompleted = 0 AND dueDate IS NOT NULL AND dueDate BETWEEN :fromDate AND :toDate
+        ORDER BY dueDate ASC, isImportant DESC, (dueTime IS NULL), dueTime ASC, createdAt ASC
+        """
+    )
+    fun observeTasksForPeriod(fromDate: LocalDate, toDate: LocalDate): Flow<List<Task>>
+
     /** Total number of tasks (any state) — small liveness probe for the MVVM chain. */
     @Query("SELECT COUNT(*) FROM tasks")
     fun observeTaskCount(): Flow<Int>

@@ -36,6 +36,10 @@ class TaskRepository @Inject constructor(
 
     fun observeTasksForList(listId: Long): Flow<List<Task>> = taskDao.observeTasksForList(listId)
 
+    /** Incomplete tasks due inside [fromDate]..[toDate] inclusive (calendar month). */
+    fun observeTasksForPeriod(fromDate: LocalDate, toDate: LocalDate): Flow<List<Task>> =
+        taskDao.observeTasksForPeriod(fromDate, toDate)
+
     fun observeTask(id: Long): Flow<Task?> = taskDao.observeById(id)
 
     suspend fun getTask(id: Long): Task? = taskDao.getById(id)
