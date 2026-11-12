@@ -72,5 +72,9 @@ dependencies {
     implementation("com.google.dagger:hilt-android:2.52")
     ksp("com.google.dagger:hilt-android-compiler:2.52")
 
+    // ---- Glance home-screen widget (Stage 6) ----
+    // 1.1.0 is the stable Glance release that supports Kotlin 2.0.
+    implementation("androidx.glance:glance-appwidget:1.1.0")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
