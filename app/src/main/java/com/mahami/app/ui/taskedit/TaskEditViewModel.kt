@@ -8,6 +8,7 @@ import com.mahami.app.data.local.entity.TaskList
 import com.mahami.app.data.repository.TaskListRepository
 import com.mahami.app.data.repository.TaskRepository
 import com.mahami.app.domain.model.RepeatType
+import com.mahami.app.reminder.ReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import java.time.LocalTime
@@ -30,6 +31,8 @@ data class TaskEditUiState(
     val time: LocalTime? = null,
     val listId: Long? = null,
     val repeatType: RepeatType = RepeatType.NONE,
+    /** Minutes before the task's date-time; null = reminder off (default). */
+    val reminderOffsetMinutes: Int? = null,
     val subtasks: List<SubTask> = emptyList(),
     val subtaskInput: String = "",
 )
@@ -38,6 +41,7 @@ data class TaskEditUiState(
 class TaskEditViewModel @Inject constructor(
     private val taskRepository: TaskRepository,
     taskListRepository: TaskListRepository,
+    private val reminderScheduler: ReminderScheduler,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TaskEditUiState())
@@ -51,7 +55,7 @@ class TaskEditViewModel @Inject constructor(
                 initialValue = emptyList(),
             )
 
-    /** Original DB row — fields not editable here (reminder, createdAt…) are preserved on save. */
+    /** Original DB row — fields not editable here (createdAt…) are preserved on save. */
     private var original: Task? = null
 
     private var loadJob: Job? = null
@@ -80,6 +84,7 @@ class TaskEditViewModel @Inject constructor(
                         time = task.dueTime,
                         listId = task.listId,
                         repeatType = task.repeatType,
+                        reminderOffsetMinutes = task.reminderOffsetMinutes,
                     )
                 }
             }
@@ -109,17 +114,25 @@ class TaskEditViewModel @Inject constructor(
 
     fun setDate(date: LocalDate?) =
         _uiState.update {
-            it.copy(
-                date = date,
-                // no date → no time
-                time = if (date == null) null else it.time,
-                // no date → no repeat (a repeat always has a date)
-                repeatType = if (date == null) RepeatType.NONE else it.repeatType,
-            )
+            if (date == null) {
+                // no date → no time → no reminder → no repeat
+                it.copy(
+                    date = null,
+                    time = null,
+                    reminderOffsetMinutes = null,
+                    repeatType = RepeatType.NONE,
+                )
+            } else {
+                it.copy(date = date)
+            }
         }
 
     fun setTime(time: LocalTime?) =
-        _uiState.update { if (it.date != null) it.copy(time = time) else it }
+        _uiState.update {
+            if (it.date == null) return@update it
+            // no time → no reminder (reminders require a date-time, per spec)
+            it.copy(time = time, reminderOffsetMinutes = if (time == null) null else it.reminderOffsetMinutes)
+        }
 
     fun setList(listId: Long?) = _uiState.update { it.copy(listId = listId) }
 
@@ -132,6 +145,22 @@ class TaskEditViewModel @Inject constructor(
                 it.copy(repeatType = repeat)
             }
         }
+
+    /**
+     * Reminder options: null (off) / 0 (at time) / 10 / 60 / 1440 minutes before.
+     * Only meaningful when the task has a time — a null [offset] always clears.
+     */
+    fun setReminder(offsetMinutes: Int?) =
+        _uiState.update {
+            if (offsetMinutes == null || it.time != null) {
+                it.copy(reminderOffsetMinutes = offsetMinutes)
+            } else {
+                it
+            }
+        }
+
+    /** For the reminder dialog note: false → only inexact alarms available (user is told). */
+    fun canScheduleExactAlarms(): Boolean = reminderScheduler.canScheduleExactAlarms()
 
     // ---------- subtasks (one level only) ----------
 
@@ -165,8 +194,9 @@ class TaskEditViewModel @Inject constructor(
     // ---------- save / delete ----------
 
     /**
-     * Persists the editor state, then runs [onDone]. A blank title discards all
-     * changes (title is required) but still closes the sheet.
+     * Persists the editor state, re-syncs reminder alarms (edit / snooze /
+     * reminder change), then runs [onDone]. A blank title discards all changes
+     * (title is required) but still closes the sheet.
      */
     fun save(onDone: () -> Unit) {
         val base = original ?: run { onDone(); return }
@@ -186,8 +216,11 @@ class TaskEditViewModel @Inject constructor(
                     dueTime = state.time,
                     listId = state.listId,
                     repeatType = state.repeatType,
+                    // A reminder exists only with both date and time.
+                    reminderOffsetMinutes = if (state.time != null) state.reminderOffsetMinutes else null,
                 ),
             )
+            reminderScheduler.syncAll()
             onDone()
         }
     }
@@ -197,6 +230,7 @@ class TaskEditViewModel @Inject constructor(
         val base = original ?: run { onDone(); return }
         viewModelScope.launch {
             taskRepository.deleteTask(base)
+            reminderScheduler.syncAll() // drops this task's alarm
             onDone()
         }
     }

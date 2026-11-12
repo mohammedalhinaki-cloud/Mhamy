@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mahami.app.data.local.dao.SubtaskCount
 import com.mahami.app.data.local.entity.Task
 import com.mahami.app.data.repository.TaskRepository
+import com.mahami.app.reminder.ReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import javax.inject.Inject
@@ -24,6 +25,7 @@ data class TodayUiState(
 @HiltViewModel
 class TodayViewModel @Inject constructor(
     private val repository: TaskRepository,
+    private val reminderScheduler: ReminderScheduler,
 ) : ViewModel() {
 
     /**
@@ -53,6 +55,11 @@ class TodayViewModel @Inject constructor(
         )
 
     fun setCompleted(taskId: Long, completed: Boolean) {
-        viewModelScope.launch { repository.setTaskCompleted(taskId, completed) }
+        viewModelScope.launch {
+            repository.setTaskCompleted(taskId, completed)
+            // Re-sync reminders (Stage 7): cancel on complete / re-schedule on undo,
+            // schedule the auto-created next occurrence of a repeating task.
+            reminderScheduler.syncAll()
+        }
     }
 }

@@ -104,6 +104,21 @@ interface TaskDao {
     )
     fun observeTasksForPeriod(fromDate: LocalDate, toDate: LocalDate): Flow<List<Task>>
 
+    /**
+     * Reminder candidates (Stage 7): incomplete tasks that have a reminder offset
+     * AND a date AND a time. One-shot read used by ReminderScheduler.syncAll().
+     */
+    @Query(
+        """
+        SELECT * FROM tasks
+        WHERE isCompleted = 0
+          AND reminderOffsetMinutes IS NOT NULL
+          AND dueDate IS NOT NULL
+          AND dueTime IS NOT NULL
+        """
+    )
+    suspend fun getReminderCandidates(): List<Task>
+
     /** Total number of tasks (any state) — small liveness probe for the MVVM chain. */
     @Query("SELECT COUNT(*) FROM tasks")
     fun observeTaskCount(): Flow<Int>

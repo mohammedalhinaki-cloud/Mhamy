@@ -1,5 +1,10 @@
 package com.mahami.app.ui.taskedit
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +35,7 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -55,10 +61,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mahami.app.data.local.entity.SubTask
@@ -78,8 +86,8 @@ private val timeLabelFormatter: DateTimeFormatter =
 
 /**
  * Task edit sheet (opened by tapping a task anywhere).
- * Edits title / notes / priority / date / time / list / repeat; manages subtasks
- * (one level); offers snooze shortcuts and delete.
+ * Edits title / notes / priority / date / time / list / repeat / reminder;
+ * manages subtasks (one level); offers snooze shortcuts and delete.
  * Auto-saves on dismiss and on «حفظ»; a blank title discards edits.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -99,7 +107,27 @@ fun TaskEditSheet(
     var showTimePicker by remember { mutableStateOf(false) }
     var showListPicker by remember { mutableStateOf(false) }
     var showRepeatPicker by remember { mutableStateOf(false) }
+    var showReminderPicker by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    // POST_NOTIFICATIONS (Android 13+) is requested lazily: only when the user
+    // actually enables a reminder, never at app start. Result is ignored on
+    // purpose — reminders then simply stay silent (ReminderReceiver re-checks).
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { }
+
+    fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     fun closeWithSave() = viewModel.save(onDone = onDismiss)
 
@@ -268,6 +296,14 @@ fun TaskEditSheet(
                         label = { Text(repeatLabel(state.repeatType)) },
                         leadingIcon = { Icon(Icons.Filled.Repeat, contentDescription = null) },
                     )
+                    // Reminder chip (Stage 7): shown only when the task has a time.
+                    if (state.time != null) {
+                        AssistChip(
+                            onClick = { showReminderPicker = true },
+                            label = { Text(reminderLabel(state.reminderOffsetMinutes)) },
+                            leadingIcon = { Icon(Icons.Filled.Notifications, contentDescription = null) },
+                        )
+                    }
                     IconButton(onClick = viewModel::toggleImportant) {
                         Icon(
                             Icons.Filled.Flag,
@@ -345,6 +381,17 @@ fun TaskEditSheet(
             selected = state.repeatType,
             onSelect = viewModel::setRepeat,
             onDismiss = { showRepeatPicker = false },
+        )
+    }
+    if (showReminderPicker) {
+        ReminderPickerDialog(
+            selected = state.reminderOffsetMinutes,
+            exactAlarmsAvailable = viewModel.canScheduleExactAlarms(),
+            onSelect = { offset ->
+                viewModel.setReminder(offset)
+                if (offset != null) requestNotificationPermissionIfNeeded()
+            },
+            onDismiss = { showReminderPicker = false },
         )
     }
     if (showDeleteConfirm) {
@@ -473,6 +520,64 @@ private fun RepeatPickerDialog(
     )
 }
 
+/**
+ * Reminder picker (Stage 7): off / at time / 10 min / 1 hour / 1 day before.
+ * When exact alarms aren't available the dialog says so (inexact fallback).
+ */
+@Composable
+private fun ReminderPickerDialog(
+    selected: Int?,
+    exactAlarmsAvailable: Boolean,
+    onSelect: (Int?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val options: List<Int?> = listOf(null, 0, 10, 60, 1440)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("التنبيه") },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("إغلاق") }
+        },
+        text = {
+            Column {
+                options.forEach { offset ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onSelect(offset)
+                                onDismiss()
+                            }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = selected == offset,
+                            onClick = {
+                                onSelect(offset)
+                                onDismiss()
+                            },
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = reminderLabel(offset),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
+                }
+                if (!exactAlarmsAvailable) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "ملاحظة: التنبيهات الدقيقة غير مفعّلة على هذا الجهاز؛ قد يصل التنبيه متأخراً بضع دقائق.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        },
+    )
+}
+
 private fun dateLabel(date: LocalDate?): String {
     val today = LocalDate.now()
     return when (date) {
@@ -488,4 +593,13 @@ private fun repeatLabel(repeat: RepeatType): String = when (repeat) {
     RepeatType.DAILY -> "يومي"
     RepeatType.WEEKLY -> "أسبوعي"
     RepeatType.MONTHLY -> "شهري"
+}
+
+private fun reminderLabel(offsetMinutes: Int?): String = when (offsetMinutes) {
+    null -> "بدون تنبيه"
+    0 -> "عند الوقت"
+    10 -> "قبل 10 دقائق"
+    60 -> "قبل ساعة"
+    1440 -> "قبل يوم"
+    else -> "قبل $offsetMinutes دقيقة"
 }

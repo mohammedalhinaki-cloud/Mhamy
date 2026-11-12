@@ -7,6 +7,7 @@ import com.mahami.app.data.local.entity.Task
 import com.mahami.app.data.local.entity.TaskList
 import com.mahami.app.data.repository.TaskListRepository
 import com.mahami.app.data.repository.TaskRepository
+import com.mahami.app.reminder.ReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
@@ -27,6 +28,7 @@ data class ListDetailUiState(
 class ListDetailViewModel @Inject constructor(
     private val taskRepository: TaskRepository,
     private val taskListRepository: TaskListRepository,
+    private val reminderScheduler: ReminderScheduler,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ListDetailUiState())
@@ -64,6 +66,10 @@ class ListDetailViewModel @Inject constructor(
     }
 
     fun setCompleted(taskId: Long, completed: Boolean) {
-        viewModelScope.launch { taskRepository.setTaskCompleted(taskId, completed) }
+        viewModelScope.launch {
+            taskRepository.setTaskCompleted(taskId, completed)
+            // Re-sync reminders (Stage 7): cancel/re-schedule, incl. repeat occurrences.
+            reminderScheduler.syncAll()
+        }
     }
 }

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mahami.app.data.local.dao.SubtaskCount
 import com.mahami.app.data.local.entity.Task
 import com.mahami.app.data.repository.TaskRepository
+import com.mahami.app.reminder.ReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import java.time.YearMonth
@@ -37,6 +38,7 @@ data class CalendarUiState(
 @HiltViewModel
 class CalendarViewModel @Inject constructor(
     private val repository: TaskRepository,
+    private val reminderScheduler: ReminderScheduler,
 ) : ViewModel() {
 
     private val displayedMonth = MutableStateFlow(YearMonth.now())
@@ -94,6 +96,10 @@ class CalendarViewModel @Inject constructor(
     }
 
     fun setCompleted(taskId: Long, completed: Boolean) {
-        viewModelScope.launch { repository.setTaskCompleted(taskId, completed) }
+        viewModelScope.launch {
+            repository.setTaskCompleted(taskId, completed)
+            // Re-sync reminders (Stage 7): cancel/re-schedule, incl. repeat occurrences.
+            reminderScheduler.syncAll()
+        }
     }
 }
