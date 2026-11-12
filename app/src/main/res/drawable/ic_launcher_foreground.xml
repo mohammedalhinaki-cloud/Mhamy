@@ -1,16 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Modern adaptive launcher foreground for Mahami.
+  The layered task card uses the same Slate, Indigo, and Teal palette as the app UI.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Simple white check mark inside the adaptive-icon safe zone -->
+    <!-- Soft depth behind the task card. -->
     <path
-        android:pathData="M34,57 L48,71 L75,42"
+        android:fillColor="#26385A"
+        android:pathData="M34,25 L70,25 Q82,25 82,37 L82,73 Q82,85 70,85 L34,85 Q22,85 22,73 L22,37 Q22,25 34,25 Z" />
+
+    <!-- Indigo task card, kept inside Android's adaptive safe zone. -->
+    <path
+        android:fillColor="#6D7CFF"
+        android:pathData="M39,21 L75,21 Q87,21 87,33 L87,69 Q87,81 75,81 L39,81 Q27,81 27,69 L27,33 Q27,21 39,21 Z" />
+
+    <!-- Teal status dot. -->
+    <path
+        android:fillColor="#38C9B4"
+        android:pathData="M43,32 A5,5 0,1,0 43,42 A5,5 0,1,0 43,32" />
+
+    <!-- Checklist lines. -->
+    <path
+        android:fillColor="#EAF0FF"
+        android:pathData="M54,34 L72,34 Q75,34 75,37 Q75,40 72,40 L54,40 Q51,40 51,37 Q51,34 54,34 Z" />
+    <path
+        android:fillColor="#D7DEFF"
+        android:fillAlpha="0.82"
+        android:pathData="M54,45 L68,45 Q71,45 71,48 Q71,51 68,51 L54,51 Q51,51 51,48 Q51,45 54,45 Z" />
+
+    <!-- Main completed-task check. -->
+    <path
+        android:fillColor="#00000000"
         android:strokeColor="#FFFFFF"
-        android:strokeWidth="7"
+        android:strokeWidth="3.8"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:fillColor="#00000000" />
+        android:pathData="M41,60 L50,69 L72,54" />
 </vector>
