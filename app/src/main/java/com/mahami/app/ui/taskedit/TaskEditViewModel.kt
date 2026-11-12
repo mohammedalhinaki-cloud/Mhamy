@@ -48,7 +48,7 @@ class TaskEditViewModel @Inject constructor(
     val uiState: StateFlow<TaskEditUiState> = _uiState.asStateFlow()
 
     val lists: StateFlow<List<TaskList>> =
-        taskListRepository.observeAll()
+        taskListRepository.observeLists()
             .stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(5_000),

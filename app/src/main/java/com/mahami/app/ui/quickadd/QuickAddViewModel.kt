@@ -40,7 +40,7 @@ class QuickAddViewModel @Inject constructor(
 
     /** Available lists for the list-picker chip (Stage 3). */
     val lists: StateFlow<List<TaskList>> =
-        taskListRepository.observeAll()
+        taskListRepository.observeLists()
             .stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(5_000),
