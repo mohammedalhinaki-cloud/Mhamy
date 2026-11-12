@@ -4,10 +4,16 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Context
 import android.text.format.DateFormat
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Event
+import androidx.compose.material.icons.outlined.EventAvailable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,24 +32,27 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -55,8 +64,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -77,15 +90,21 @@ import java.time.temporal.ChronoField
 import java.util.Calendar
 import java.util.Locale
 
-private enum class AppTab(val label: String, val symbol: String) {
-    TASKS("مهامي", "✓"),
-    SCHEDULED("بموعد", "◷"),
-    CALENDAR("التقويم", "▦"),
+private enum class AppTab(val label: String) {
+    TASKS("مهامي"),
+    SCHEDULED("بموعد"),
+    CALENDAR("التقويم"),
 }
 
 private enum class CalendarMode {
     GREGORIAN,
     HIJRI,
+}
+
+private fun tabIcon(tab: AppTab): ImageVector = when (tab) {
+    AppTab.TASKS -> Icons.Outlined.CheckCircle
+    AppTab.SCHEDULED -> Icons.Outlined.EventAvailable
+    AppTab.CALENDAR -> Icons.Outlined.CalendarMonth
 }
 
 @Composable
@@ -135,18 +154,55 @@ fun MahamiApp(
         selectedCategoryId = nextId
     }
 
-    MaterialTheme(colorScheme = mahamiColorScheme()) {
+    MaterialTheme(
+        colorScheme = mahamiColorScheme(),
+        typography = mahamiTypography,
+    ) {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
             Scaffold(
                 modifier = Modifier.fillMaxSize(),
+                containerColor = MaterialTheme.colorScheme.background,
                 bottomBar = {
-                    NavigationBar {
+                    NavigationBar(
+                        modifier = Modifier.border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.42f),
+                        ),
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 0.dp,
+                    ) {
                         AppTab.entries.forEach { tab ->
+                            val selected = activeTab == tab
                             NavigationBarItem(
-                                selected = activeTab == tab,
+                                selected = selected,
                                 onClick = { activeTabName = tab.name },
-                                icon = { Text(tab.symbol, fontSize = 21.sp) },
+                                icon = {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(
+                                            imageVector = tabIcon(tab),
+                                            contentDescription = tab.label,
+                                            modifier = Modifier.size(22.dp),
+                                        )
+                                        Spacer(modifier = Modifier.height(3.dp))
+                                        Surface(
+                                            modifier = Modifier.size(4.dp),
+                                            shape = CircleShape,
+                                            color = if (selected) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                Color.Transparent
+                                            },
+                                        ) {}
+                                    }
+                                },
                                 label = { Text(tab.label) },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    indicatorColor = Color.Transparent,
+                                ),
                             )
                         }
                     }
@@ -156,6 +212,7 @@ fun MahamiApp(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(contentPadding),
+                    color = MaterialTheme.colorScheme.background,
                 ) {
                     when (activeTab) {
                         AppTab.TASKS -> TasksScreen(
@@ -232,8 +289,8 @@ private fun TasksScreen(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            .padding(horizontal = 18.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         ScreenHeading(
             title = "مهامي",
@@ -252,11 +309,15 @@ private fun TasksScreen(
             activeTasks = activeTasks,
             completedTasks = completedTasks,
             categories = categories,
+            emptyTitle = if (selectedCategoryId == null) "لا مهام بعد" else "لا مهام في هذا التصنيف",
             emptyMessage = if (selectedCategoryId == null) {
-                "لا توجد مهام بعد. أضف أول مهمة لتبدأ."
+                "أضف أول مهمة لتبدأ يومك."
             } else {
-                "لا توجد مهام ضمن هذا التصنيف."
+                "جرّب تصنيفاً آخر أو أضف مهمة جديدة."
             },
+            emptyActionLabel = "أضف مهمة",
+            emptyIcon = Icons.Outlined.CheckCircle,
+            onEmptyAction = onAddTask,
             onTaskUpdated = onTaskUpdated,
             onTaskDeleted = onTaskDeleted,
         )
@@ -279,8 +340,8 @@ private fun ScheduledTasksScreen(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            .padding(horizontal = 18.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         ScreenHeading(
             title = "مهام بموعد",
@@ -293,7 +354,11 @@ private fun ScheduledTasksScreen(
             activeTasks = activeTasks,
             completedTasks = completedTasks,
             categories = categories,
+            emptyTitle = "لا شيء هنا الآن",
             emptyMessage = "لم تضف أي مهمة بموعد حتى الآن.",
+            emptyActionLabel = "إضافة موعد",
+            emptyIcon = Icons.Outlined.Event,
+            onEmptyAction = onAddTask,
             onTaskUpdated = onTaskUpdated,
             onTaskDeleted = onTaskDeleted,
         )
@@ -309,10 +374,13 @@ private fun ScreenHeading(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.headlineSmall,
@@ -324,8 +392,18 @@ private fun ScreenHeading(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Button(onClick = onAction) {
-            Text(actionLabel)
+        Button(
+            onClick = onAction,
+            modifier = Modifier.height(48.dp),
+            shape = RoundedCornerShape(18.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 5.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
+        ) {
+            Text(actionLabel, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -339,24 +417,75 @@ private fun CategoryFilters(
 ) {
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
-            FilterChip(
+            CategoryFilterChip(
+                label = "الكل",
                 selected = selectedCategoryId == null,
+                dotColor = null,
                 onClick = { onCategorySelected(null) },
-                label = { Text("الكل") },
             )
         }
         items(categories, key = { it.id }) { category ->
-            FilterChip(
+            CategoryFilterChip(
+                label = category.name,
                 selected = selectedCategoryId == category.id,
+                dotColor = category.color,
                 onClick = { onCategorySelected(category.id) },
-                label = { Text(category.name) },
-                leadingIcon = { CategoryDot(category.color) },
             )
         }
         item {
-            AssistChip(
+            CategoryFilterChip(
+                label = "+ تصنيف",
+                selected = false,
+                dotColor = null,
                 onClick = onAddCategory,
-                label = { Text("+ تصنيف") },
+            )
+        }
+    }
+}
+
+@Composable
+private fun CategoryFilterChip(
+    label: String,
+    selected: Boolean,
+    dotColor: Long?,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(16.dp)
+    Surface(
+        modifier = Modifier
+            .height(44.dp)
+            .clip(shape)
+            .border(
+                width = 1.dp,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.72f)
+                } else {
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)
+                },
+                shape = shape,
+            )
+            .clickable(onClick = onClick),
+        shape = shape,
+        color = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surface
+        },
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 13.dp),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (dotColor != null) CategoryDot(dotColor, size = 8.dp)
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
             )
         }
     }
@@ -368,12 +497,23 @@ private fun TaskList(
     activeTasks: List<Task>,
     completedTasks: List<Task>,
     categories: List<Category>,
+    emptyTitle: String,
     emptyMessage: String,
+    emptyActionLabel: String,
+    emptyIcon: ImageVector,
+    onEmptyAction: () -> Unit,
     onTaskUpdated: (Task) -> Unit,
     onTaskDeleted: (Long) -> Unit,
 ) {
     if (activeTasks.isEmpty() && completedTasks.isEmpty()) {
-        EmptyCard(message = emptyMessage, modifier = modifier)
+        PremiumEmptyState(
+            modifier = modifier,
+            icon = emptyIcon,
+            title = emptyTitle,
+            message = emptyMessage,
+            actionLabel = emptyActionLabel,
+            onAction = onEmptyAction,
+        )
         return
     }
 
@@ -426,35 +566,49 @@ private fun TaskCard(
     onTaskUpdated: (Task) -> Unit,
     onTaskDeleted: (Long) -> Unit,
 ) {
+    val shape = RoundedCornerShape(18.dp)
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.40f),
+                shape = shape,
+            ),
+        shape = shape,
         colors = CardDefaults.cardColors(
             containerColor = if (task.isDone) {
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f)
+                MaterialTheme.colorScheme.surface.copy(alpha = 0.64f)
             } else {
-                MaterialTheme.colorScheme.surfaceVariant
+                MaterialTheme.colorScheme.surface
             },
         ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 7.dp),
+                .padding(horizontal = 10.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Checkbox(
                 checked = task.isDone,
                 onCheckedChange = { onTaskUpdated(task.copy(isDone = it)) },
+                colors = CheckboxDefaults.colors(
+                    checkedColor = MaterialTheme.colorScheme.primary,
+                    checkmarkColor = MaterialTheme.colorScheme.onPrimary,
+                    uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
             )
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 6.dp),
-                verticalArrangement = Arrangement.spacedBy(3.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 Text(
                     text = task.title,
-                    fontSize = 16.sp,
+                    style = MaterialTheme.typography.titleSmall,
                     textDecoration = if (task.isDone) TextDecoration.LineThrough else null,
                     color = if (task.isDone) {
                         MaterialTheme.colorScheme.onSurfaceVariant
@@ -468,7 +622,7 @@ private fun TaskCard(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (category != null) {
-                            CategoryDot(category.color)
+                            CategoryDot(category.color, size = 7.dp)
                             Text(
                                 text = category.name,
                                 style = MaterialTheme.typography.labelMedium,
@@ -485,7 +639,10 @@ private fun TaskCard(
                     }
                 }
             }
-            TextButton(onClick = { onTaskDeleted(task.id) }) {
+            TextButton(
+                onClick = { onTaskDeleted(task.id) },
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+            ) {
                 Text("حذف")
             }
         }
@@ -503,24 +660,56 @@ private fun SectionTitle(title: String, count: Int) {
 }
 
 @Composable
-private fun EmptyCard(message: String, modifier: Modifier = Modifier) {
-    Card(
+private fun PremiumEmptyState(
+    icon: ImageVector,
+    title: String,
+    message: String,
+    actionLabel: String,
+    onAction: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center,
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
+            modifier = Modifier.padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            Surface(
+                modifier = Modifier.size(76.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(34.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
             Text(
-                text = "لا شيء هنا الآن",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
             )
             Text(
                 text = message,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
             )
+            TextButton(onClick = onAction) {
+                Text(
+                    text = actionLabel,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
         }
     }
 }
@@ -712,8 +901,8 @@ private fun CalendarScreen(
             .fillMaxSize()
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         ScreenHeading(
             title = "التقويم",
@@ -781,17 +970,67 @@ private fun CalendarModeFilter(
     mode: CalendarMode,
     onModeChanged: (CalendarMode) -> Unit,
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        FilterChip(
-            selected = mode == CalendarMode.GREGORIAN,
-            onClick = { onModeChanged(CalendarMode.GREGORIAN) },
-            label = { Text("ميلادي") },
-        )
-        FilterChip(
-            selected = mode == CalendarMode.HIJRI,
-            onClick = { onModeChanged(CalendarMode.HIJRI) },
-            label = { Text("هجري أم القرى") },
-        )
+    val outerShape = RoundedCornerShape(18.dp)
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.48f),
+                shape = outerShape,
+            ),
+        shape = outerShape,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Row(
+            modifier = Modifier.padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            CalendarModeOption(
+                label = "ميلادي",
+                selected = mode == CalendarMode.GREGORIAN,
+                modifier = Modifier.weight(1f),
+                onClick = { onModeChanged(CalendarMode.GREGORIAN) },
+            )
+            CalendarModeOption(
+                label = "هجري أم القرى",
+                selected = mode == CalendarMode.HIJRI,
+                modifier = Modifier.weight(1f),
+                onClick = { onModeChanged(CalendarMode.HIJRI) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun CalendarModeOption(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Surface(
+        modifier = modifier
+            .height(42.dp)
+            .clip(shape)
+            .clickable(onClick = onClick),
+        shape = shape,
+        color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+        shadowElevation = if (selected) 3.dp else 0.dp,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.onPrimary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
     }
 }
 
@@ -932,46 +1171,47 @@ private fun CalendarDayCell(
     modifier: Modifier,
     onClick: () -> Unit,
 ) {
-    val borderColor = when {
+    val containerColor = when {
         isSelected -> MaterialTheme.colorScheme.primary
-        isToday -> MaterialTheme.colorScheme.secondary
-        else -> MaterialTheme.colorScheme.outlineVariant
+        isToday -> MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+        else -> Color.Transparent
     }
-    val containerColor = if (isSelected) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        Color.Transparent
+    val labelColor = when {
+        isSelected -> MaterialTheme.colorScheme.onPrimary
+        isToday -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     Surface(
         modifier = modifier
-            .height(58.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+            .aspectRatio(1f)
+            .clip(CircleShape)
             .clickable(onClick = onClick),
+        shape = CircleShape,
         color = containerColor,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(vertical = 5.dp),
+                .padding(vertical = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
-                fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
+                color = labelColor,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 tasks.take(3).forEach { task ->
-                    val color = categoryById[task.categoryId]?.color ?: 0xFF075E54L
-                    CategoryDot(color, size = 5.dp)
+                    val color = categoryById[task.categoryId]?.color ?: 0xFF6D7CFFL
+                    CategoryDot(color, size = 4.dp)
                 }
                 if (tasks.size > 3) {
                     Text(
                         text = "+",
-                        fontSize = 9.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 8.sp,
+                        color = labelColor,
                     )
                 }
             }
@@ -994,10 +1234,34 @@ private fun SelectedDateTasks(
             fontWeight = FontWeight.SemiBold,
         )
         if (tasks.isEmpty()) {
-            Text(
-                text = "لا توجد مهام بموعد في هذا اليوم.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Surface(
+                    modifier = Modifier.size(52.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Outlined.Event,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+                Text(
+                    text = "لا توجد مهام بموعد في هذا اليوم.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
         } else {
             tasks.sortedBy { it.dueAt }.take(3).forEach { task ->
                 TaskCard(
@@ -1111,15 +1375,79 @@ private val hijriMonthNames = listOf(
     "ذو الحجة",
 )
 
-@Composable
-private fun mahamiColorScheme() = if (androidx.compose.foundation.isSystemInDarkTheme()) {
-    darkColorScheme(
-        primary = Color(0xFF9CCBFF),
-        secondary = Color(0xFFB9C9DD),
-    )
-} else {
-    lightColorScheme(
-        primary = Color(0xFF075E54),
-        secondary = Color(0xFF45645F),
-    )
-}
+private val mahamiArabicFont = FontFamily(
+    Font(R.font.ibm_plex_sans_arabic_regular, FontWeight.Normal),
+    Font(R.font.ibm_plex_sans_arabic_medium, FontWeight.Medium),
+    Font(R.font.ibm_plex_sans_arabic_semibold, FontWeight.SemiBold),
+    Font(R.font.ibm_plex_sans_arabic_bold, FontWeight.Bold),
+)
+
+private val mahamiTypography = Typography(
+    headlineSmall = TextStyle(
+        fontFamily = mahamiArabicFont,
+        fontWeight = FontWeight.Bold,
+        fontSize = 28.sp,
+        lineHeight = 36.sp,
+    ),
+    titleLarge = TextStyle(
+        fontFamily = mahamiArabicFont,
+        fontWeight = FontWeight.Bold,
+        fontSize = 20.sp,
+        lineHeight = 28.sp,
+    ),
+    titleMedium = TextStyle(
+        fontFamily = mahamiArabicFont,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 17.sp,
+        lineHeight = 25.sp,
+    ),
+    titleSmall = TextStyle(
+        fontFamily = mahamiArabicFont,
+        fontWeight = FontWeight.Medium,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+    ),
+    bodyMedium = TextStyle(
+        fontFamily = mahamiArabicFont,
+        fontWeight = FontWeight.Normal,
+        fontSize = 14.sp,
+        lineHeight = 22.sp,
+    ),
+    labelLarge = TextStyle(
+        fontFamily = mahamiArabicFont,
+        fontWeight = FontWeight.Medium,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+    ),
+    labelMedium = TextStyle(
+        fontFamily = mahamiArabicFont,
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.sp,
+        lineHeight = 18.sp,
+    ),
+    labelSmall = TextStyle(
+        fontFamily = mahamiArabicFont,
+        fontWeight = FontWeight.Medium,
+        fontSize = 11.sp,
+        lineHeight = 16.sp,
+    ),
+)
+
+private fun mahamiColorScheme() = darkColorScheme(
+    primary = Color(0xFF6D7CFF),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFF293A80),
+    onPrimaryContainer = Color(0xFFE1E7FF),
+    secondary = Color(0xFF38C9B4),
+    onSecondary = Color(0xFF062B27),
+    secondaryContainer = Color(0xFF173F3A),
+    onSecondaryContainer = Color(0xFFB8F4EA),
+    background = Color(0xFF0F172A),
+    onBackground = Color(0xFFF1F5F9),
+    surface = Color(0xFF1A2638),
+    onSurface = Color(0xFFF1F5F9),
+    surfaceVariant = Color(0xFF233247),
+    onSurfaceVariant = Color(0xFF94A3B8),
+    outline = Color(0xFF718198),
+    error = Color(0xFFFB7185),
+)

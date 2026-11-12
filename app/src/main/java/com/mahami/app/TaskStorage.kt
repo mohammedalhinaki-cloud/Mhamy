@@ -120,16 +120,16 @@ class TaskStorage(context: Context) {
 }
 
 val defaultCategories = listOf(
-    Category(id = 1, name = "العمل", color = 0xFF2563EBL),
-    Category(id = 2, name = "العائلة", color = 0xFF8B5CF6L),
-    Category(id = 3, name = "المنزل", color = 0xFFF59E0BL),
+    Category(id = 1, name = "العمل", color = 0xFF7C8CFFL),
+    Category(id = 2, name = "العائلة", color = 0xFFB78BFAL),
+    Category(id = 3, name = "المنزل", color = 0xFFF0B45CL),
 )
 
 val DEFAULT_CATEGORY_COLORS = listOf(
-    0xFF2563EBL,
-    0xFF8B5CF6L,
-    0xFFF59E0BL,
-    0xFF059669L,
-    0xFFDB2777L,
-    0xFF0891B2L,
+    0xFF7C8CFFL,
+    0xFFB78BFAL,
+    0xFFF0B45CL,
+    0xFF48C7B0L,
+    0xFFFF8FA3L,
+    0xFF61BFEAL,
 )
