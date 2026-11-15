@@ -43,7 +43,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Draft
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.EventAvailable
@@ -658,7 +657,7 @@ private fun DraftTaskCard(draft: TaskDraft, onEdit: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Icon(Icons.Outlined.Draft, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+            Icon(Icons.Outlined.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("مسودة", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary)
                 SelectionContainer { Text(draft.title, style = MaterialTheme.typography.titleSmall) }
