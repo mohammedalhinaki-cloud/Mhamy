@@ -68,6 +68,7 @@ class TaskSwipeRtlInstrumentedTest {
 
         // Edit opens the task editor and resets the open action row.
         composeRule.onNodeWithTag(editTag(firstTaskId)).performClick()
+        waitForText("تعديل المهمة")
         composeRule.onNodeWithText("تعديل المهمة").assertIsDisplayed()
         composeRule.onNodeWithText("إغلاق").performClick()
         waitForTagToDisappear(editTag(firstTaskId))

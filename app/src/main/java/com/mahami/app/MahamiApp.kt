@@ -192,6 +192,12 @@ fun MahamiApp(
         updateData(data.copy(tasks = data.tasks.map { if (it.id == task.id) task else it }))
     }
 
+    fun editTask(taskId: Long) {
+        val task = data.tasks.find { it.id == taskId } ?: return
+        editingTaskId = task.id
+        editorSectionName = if (task.dueAt == null) TaskSection.TASKS.name else TaskSection.SCHEDULED.name
+    }
+
     fun deleteTask(taskId: Long) {
         updateData(data.copy(tasks = data.tasks.filterNot { it.id == taskId }))
     }
@@ -298,7 +304,7 @@ fun MahamiApp(
                             onAddCategory = { addCategorySectionName = TaskSection.TASKS.name },
                             onEditCategory = { editingCategoryId = it },
                             onAddTask = { editorSectionName = TaskSection.TASKS.name },
-                            onEditTask = { editingTaskId = it },
+                            onEditTask = ::editTask,
                             onTaskUpdated = ::updateTask,
                             onTaskDeleted = { deleteConfirmationTaskId = it },
                         )
@@ -314,7 +320,7 @@ fun MahamiApp(
                             onAddCategory = { addCategorySectionName = TaskSection.SCHEDULED.name },
                             onEditCategory = { editingCategoryId = it },
                             onAddTask = { editorSectionName = TaskSection.SCHEDULED.name },
-                            onEditTask = { editingTaskId = it },
+                            onEditTask = ::editTask,
                             onTaskUpdated = ::updateTask,
                             onTaskDeleted = { deleteConfirmationTaskId = it },
                         )
@@ -323,7 +329,7 @@ fun MahamiApp(
                             tasks = data.tasks,
                             categories = data.categories.filter { it.section == TaskSection.SCHEDULED },
                             onAddTask = { editorSectionName = TaskSection.SCHEDULED.name },
-                            onEditTask = { editingTaskId = it },
+                            onEditTask = ::editTask,
                             onTaskUpdated = ::updateTask,
                             onTaskDeleted = { deleteConfirmationTaskId = it },
                         )
