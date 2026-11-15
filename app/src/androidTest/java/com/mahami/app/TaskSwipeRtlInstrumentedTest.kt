@@ -1,11 +1,11 @@
 package com.mahami.app
 
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.test.assertDoesNotExist
-import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -14,6 +14,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -74,13 +75,14 @@ class TaskSwipeRtlInstrumentedTest {
         // Pin updates only the selected task and closes its action row.
         swipeRight(firstTaskId)
         composeRule.onNodeWithTag(pinTag(firstTaskId)).performClick()
-        composeRule.onNodeWithContentDescription("مثبتة").assertExists()
+        waitForContentDescription("مثبتة")
+        composeRule.onNodeWithContentDescription("مثبتة").assertIsDisplayed()
         waitForTagToDisappear(pinTag(firstTaskId))
 
         // Opening another row closes the first row instead of leaving two panels active.
         swipeRight(secondTaskId)
         composeRule.onNodeWithTag(editTag(secondTaskId)).assertIsDisplayed()
-        composeRule.onNodeWithTag(editTag(firstTaskId)).assertDoesNotExist()
+        waitForTagToDisappear(editTag(firstTaskId))
 
         // A physical left swipe closes the active row cleanly; repeat it to catch stuck state.
         repeat(3) {
@@ -94,21 +96,22 @@ class TaskSwipeRtlInstrumentedTest {
         composeRule.onNodeWithTag(deleteTag(secondTaskId)).performClick()
         composeRule.onNodeWithText("حذف المهمة؟").assertIsDisplayed()
         composeRule.onNodeWithText("إلغاء").performClick()
-        composeRule.onNodeWithText("مهمة اختبار ثانية").assertExists()
+        waitForText("مهمة اختبار ثانية")
+        composeRule.onNodeWithText("مهمة اختبار ثانية").assertIsDisplayed()
         waitForTagToDisappear(deleteTag(secondTaskId))
 
         // The explicit confirmation performs deletion; a swipe alone never does.
         swipeRight(secondTaskId)
         composeRule.onNodeWithTag(deleteTag(secondTaskId)).performClick()
         composeRule.onNodeWithTag("delete-confirm").performClick()
-        composeRule.onNodeWithText("مهمة اختبار ثانية").assertDoesNotExist()
+        waitForTextToDisappear("مهمة اختبار ثانية")
     }
 
     private fun swipeRight(taskId: Long) {
         composeRule.onNodeWithTag(cardTag(taskId), useUnmergedTree = true).performTouchInput {
             val centerY = height / 2f
             down(Offset(width * 0.15f, centerY))
-            moveTo(Offset(width * 0.92f, centerY), durationMillis = 360)
+            moveTo(Offset(width * 0.92f, centerY), delayMillis = 360)
             up()
         }
         waitForTag(editTag(taskId))
@@ -121,7 +124,7 @@ class TaskSwipeRtlInstrumentedTest {
         composeRule.onNodeWithTag(cardTag(taskId), useUnmergedTree = true).performTouchInput {
             val centerY = height / 2f
             down(Offset(width * 0.20f, centerY))
-            moveTo(Offset(-width * 0.60f, centerY), durationMillis = 300)
+            moveTo(Offset(-width * 0.60f, centerY), delayMillis = 300)
             up()
         }
     }
@@ -136,6 +139,25 @@ class TaskSwipeRtlInstrumentedTest {
         composeRule.waitUntil(timeoutMillis = 5_000) {
             composeRule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().isEmpty()
         }
+    }
+
+    private fun waitForContentDescription(contentDescription: String) {
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithContentDescription(contentDescription).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    private fun waitForText(text: String) {
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    private fun waitForTextToDisappear(text: String) {
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isEmpty()
+        }
+        assertTrue(composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isEmpty())
     }
 
     private companion object {
