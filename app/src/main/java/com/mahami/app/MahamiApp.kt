@@ -94,6 +94,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -406,6 +407,7 @@ fun MahamiApp(
                                 deleteTask(task.id)
                                 deleteConfirmationTaskId = null
                             },
+                            modifier = Modifier.testTag("delete-confirm"),
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                         ) { Text("حذف") }
                     },
@@ -871,6 +873,7 @@ private fun SwipeTaskRow(
                         icon = Icons.Outlined.Edit,
                         color = MaterialTheme.colorScheme.primary,
                         onClick = onEdit,
+                        testTag = "swipe-edit-$taskId",
                         modifier = Modifier.weight(1f),
                     )
                     SwipeAction(
@@ -878,6 +881,7 @@ private fun SwipeTaskRow(
                         icon = Icons.Outlined.PushPin,
                         color = MaterialTheme.colorScheme.secondary,
                         onClick = onPin,
+                        testTag = "swipe-pin-$taskId",
                         modifier = Modifier.weight(1f),
                     )
                     SwipeAction(
@@ -885,6 +889,7 @@ private fun SwipeTaskRow(
                         icon = Icons.Outlined.Delete,
                         color = MaterialTheme.colorScheme.error,
                         onClick = onDelete,
+                        testTag = "swipe-delete-$taskId",
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -893,6 +898,7 @@ private fun SwipeTaskRow(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .testTag("task-card-$taskId")
                     .onSizeChanged { cardHeightPx = it.height }
                     .offset { IntOffset(offsetPx.roundToInt(), 0) }
                     .anchoredDraggable(
@@ -919,10 +925,15 @@ private fun SwipeAction(
     icon: ImageVector,
     color: Color,
     onClick: () -> Unit,
+    testTag: String,
     modifier: Modifier,
 ) {
     Surface(
-        modifier = modifier.fillMaxSize().clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick),
+        modifier = modifier
+            .fillMaxSize()
+            .testTag(testTag)
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick),
         color = color,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {

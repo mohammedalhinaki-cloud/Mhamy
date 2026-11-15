@@ -41,7 +41,7 @@ app/src/main/java/com/mahami/app/
 
 ## تنزيل APK
 
-[تنزيل مهامي 1.5.3](https://github.com/mohammedalhinaki-cloud/Mhamy/releases/download/v1.5.3/Mahami-v1.5.3.apk)
+[تنزيل مهامي 1.5.4](https://github.com/mohammedalhinaki-cloud/Mhamy/releases/download/v1.5.4/Mahami-v1.5.4.apk)
 
 > الإصدار موقّع للتثبيت المباشر خارج متجر Play. إذا كان الإصدار السابق مثبتاً ورفض أندرويد التحديث، احذفه أولاً ثم ثبّت هذا الإصدار.
 
