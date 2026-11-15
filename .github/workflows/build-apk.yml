@@ -64,9 +64,9 @@ jobs:
               adb shell input keyevent 82
               adb shell getprop persist.sys.locale | grep -E '^ar-SA$'
               ./gradlew --no-daemon connectedDebugAndroidTest --stacktrace
-            ) > swipe-emulator-test.log 2>&1
+            ) > /home/runner/work/Mhamy/Mhamy/swipe-emulator-test.log 2>&1
             result=$?
-            cat swipe-emulator-test.log
+            cat /home/runner/work/Mhamy/Mhamy/swipe-emulator-test.log
             exit "$result"
 
       - name: Publish swipe emulator test log
@@ -74,7 +74,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: swipe-rtl-emulator-test-log
-          path: swipe-emulator-test.log
+          path: /home/runner/work/Mhamy/Mhamy/swipe-emulator-test.log
           if-no-files-found: error
           retention-days: 30
 
@@ -85,7 +85,7 @@ jobs:
         run: |
           {
             echo "# Swipe emulator command output"
-            if [ -s swipe-emulator-test.log ]; then cat swipe-emulator-test.log; else echo "No command log was written."; fi
+            if [ -s /home/runner/work/Mhamy/Mhamy/swipe-emulator-test.log ]; then cat /home/runner/work/Mhamy/Mhamy/swipe-emulator-test.log; else echo "No command log was written."; fi
             echo
             echo "# Instrumentation result XML"
             find app/build/outputs/androidTest-results -name '*.xml' -type f -exec sh -c 'echo "--- $1"; cat "$1"' _ {} \; 2>/dev/null || true
