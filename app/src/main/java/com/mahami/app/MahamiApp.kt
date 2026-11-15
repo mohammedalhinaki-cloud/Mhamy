@@ -741,7 +741,10 @@ private fun TaskCard(
     ) {
         val shape = RoundedCornerShape(18.dp)
         Card(
-            modifier = Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), shape),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("task-content-${task.id}")
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), shape),
             shape = shape,
             colors = CardDefaults.cardColors(
                 containerColor = if (task.isDone) MaterialTheme.colorScheme.surface.copy(alpha = 0.64f) else MaterialTheme.colorScheme.surface,

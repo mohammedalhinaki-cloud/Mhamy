@@ -54,7 +54,7 @@ class TaskSwipeRtlInstrumentedTest {
     fun rightSwipe_revealsThreeActions_andEachActionWorks_inArabicRtl() {
         assertEquals(
             LayoutDirection.Rtl,
-            composeRule.onNodeWithTag(cardTag(firstTaskId), useUnmergedTree = true)
+            composeRule.onNodeWithTag(contentTag(firstTaskId), useUnmergedTree = true)
                 .fetchSemanticsNode()
                 .layoutInfo
                 .layoutDirection,
@@ -166,6 +166,7 @@ class TaskSwipeRtlInstrumentedTest {
         const val secondTaskId = 1_002L
 
         fun cardTag(taskId: Long) = "task-card-$taskId"
+        fun contentTag(taskId: Long) = "task-content-$taskId"
         fun editTag(taskId: Long) = "swipe-edit-$taskId"
         fun pinTag(taskId: Long) = "swipe-pin-$taskId"
         fun deleteTag(taskId: Long) = "swipe-delete-$taskId"
