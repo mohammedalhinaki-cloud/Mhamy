@@ -6,15 +6,27 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+
+data class NotificationReadiness(
+    val notificationsAllowed: Boolean,
+    val exactAlarmsAllowed: Boolean,
+    val isHuaweiDevice: Boolean,
+    val batteryOptimizationIgnored: Boolean,
+) {
+    val readyForScheduling: Boolean
+        get() = notificationsAllowed && exactAlarmsAllowed && (!isHuaweiDevice || batteryOptimizationIgnored)
+}
 
 /** Schedules real device alarms for scheduled, unfinished tasks. */
 object TaskNotificationScheduler {
@@ -33,6 +45,68 @@ object TaskNotificationScheduler {
                 description = "تنبيهات المهام ذات الموعد"
             }
             context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        }
+    }
+
+    fun readiness(context: Context): NotificationReadiness {
+        createChannel(context)
+        val notificationsAllowed = NotificationManagerCompat.from(context).areNotificationsEnabled() &&
+            (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) &&
+            channelIsEnabled(context)
+        val exactAlarmsAllowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).canScheduleExactAlarms()
+        val isHuawei = Build.MANUFACTURER.contains("huawei", ignoreCase = true) ||
+            Build.BRAND.contains("huawei", ignoreCase = true)
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        return NotificationReadiness(
+            notificationsAllowed = notificationsAllowed,
+            exactAlarmsAllowed = exactAlarmsAllowed,
+            isHuaweiDevice = isHuawei,
+            batteryOptimizationIgnored = powerManager.isIgnoringBatteryOptimizations(context.packageName),
+        )
+    }
+
+    fun openNotificationSettings(context: Context) {
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
+                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                putExtra(Settings.EXTRA_CHANNEL_ID, CHANNEL_ID)
+            }
+        } else {
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
+        }
+        runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    }
+
+    fun openHuaweiAppLaunchSettings(context: Context) {
+        val huaweiIntents = listOf(
+            Intent().setComponent(
+                ComponentName(
+                    "com.huawei.systemmanager",
+                    "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity",
+                ),
+            ),
+            Intent().setComponent(
+                ComponentName(
+                    "com.huawei.systemmanager",
+                    "com.huawei.systemmanager.optimize.process.ProtectActivity",
+                ),
+            ),
+        )
+        val opened = huaweiIntents.any { intent ->
+            runCatching {
+                context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                true
+            }.getOrDefault(false)
+        }
+        if (!opened) {
+            runCatching {
+                context.startActivity(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }
         }
     }
 
@@ -84,6 +158,15 @@ object TaskNotificationScheduler {
         }
     }
 
+    private fun channelIsEnabled(context: Context): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.getSystemService(NotificationManager::class.java)
+                .getNotificationChannel(CHANNEL_ID)
+                ?.importance != NotificationManager.IMPORTANCE_NONE
+        } else {
+            true
+        }
+
     private fun reminderPendingIntent(context: Context, taskId: Long, title: String): PendingIntent {
         val intent = Intent(context, TaskReminderReceiver::class.java).apply {
             action = "${context.packageName}.TASK_REMINDER.$taskId"
@@ -132,7 +215,13 @@ class TaskReminderReceiver : BroadcastReceiver() {
 
 class TaskBootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+        if (intent.action in setOf(
+                Intent.ACTION_BOOT_COMPLETED,
+                Intent.ACTION_MY_PACKAGE_REPLACED,
+                Intent.ACTION_TIME_CHANGED,
+                Intent.ACTION_TIMEZONE_CHANGED,
+            )
+        ) {
             TaskNotificationScheduler.rescheduleAll(context, TaskStorage(context).read().tasks)
         }
     }

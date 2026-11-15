@@ -13,7 +13,9 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +41,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -73,6 +77,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -80,9 +85,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -94,6 +100,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -141,6 +148,7 @@ fun MahamiApp(
     var editingTaskId by rememberSaveable { mutableStateOf<Long?>(null) }
     var addCategorySectionName by rememberSaveable { mutableStateOf<String?>(null) }
     var editingCategoryId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var deleteConfirmationTaskId by rememberSaveable { mutableStateOf<Long?>(null) }
     val activeTab = AppTab.valueOf(activeTabName)
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -289,7 +297,7 @@ fun MahamiApp(
                             onAddTask = { editorSectionName = TaskSection.TASKS.name },
                             onEditTask = { editingTaskId = it },
                             onTaskUpdated = ::updateTask,
-                            onTaskDeleted = ::deleteTask,
+                            onTaskDeleted = { deleteConfirmationTaskId = it },
                         )
 
                         AppTab.SCHEDULED -> ScheduledTasksScreen(
@@ -304,8 +312,9 @@ fun MahamiApp(
                             onEditCategory = { editingCategoryId = it },
                             onAddTask = { editorSectionName = TaskSection.SCHEDULED.name },
                             onEditTask = { editingTaskId = it },
+                            onConfigureNotifications = ::requestScheduledNotifications,
                             onTaskUpdated = ::updateTask,
-                            onTaskDeleted = ::deleteTask,
+                            onTaskDeleted = { deleteConfirmationTaskId = it },
                         )
 
                         AppTab.CALENDAR -> CalendarScreen(
@@ -314,7 +323,7 @@ fun MahamiApp(
                             onAddTask = { editorSectionName = TaskSection.SCHEDULED.name },
                             onEditTask = { editingTaskId = it },
                             onTaskUpdated = ::updateTask,
-                            onTaskDeleted = ::deleteTask,
+                            onTaskDeleted = { deleteConfirmationTaskId = it },
                         )
                     }
                 }
@@ -382,6 +391,24 @@ fun MahamiApp(
                         deleteCategory(category.id)
                         editingCategoryId = null
                     },
+                )
+            }
+
+            data.tasks.find { it.id == deleteConfirmationTaskId }?.let { task ->
+                AlertDialog(
+                    onDismissRequest = { deleteConfirmationTaskId = null },
+                    title = { Text("حذف المهمة؟") },
+                    text = { Text("سيتم حذف «${task.title}» وإلغاء تنبيهها إن وُجد.") },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                deleteTask(task.id)
+                                deleteConfirmationTaskId = null
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                        ) { Text("حذف") }
+                    },
+                    dismissButton = { TextButton(onClick = { deleteConfirmationTaskId = null }) { Text("إلغاء") } },
                 )
             }
         }
@@ -452,6 +479,7 @@ private fun ScheduledTasksScreen(
     onEditCategory: (Long) -> Unit,
     onAddTask: () -> Unit,
     onEditTask: (Long) -> Unit,
+    onConfigureNotifications: () -> Unit,
     onTaskUpdated: (Task) -> Unit,
     onTaskDeleted: (Long) -> Unit,
 ) {
@@ -469,6 +497,7 @@ private fun ScheduledTasksScreen(
             actionLabel = "إضافة موعد",
             onAction = onAddTask,
         )
+        NotificationStatusCard(onConfigureNotifications)
         CategoryFilters(
             categories = categories,
             selectedCategoryId = selectedCategoryId,
@@ -491,6 +520,56 @@ private fun ScheduledTasksScreen(
             onTaskUpdated = onTaskUpdated,
             onTaskDeleted = onTaskDeleted,
         )
+    }
+}
+
+@Composable
+private fun NotificationStatusCard(onConfigureNotifications: () -> Unit) {
+    val context = LocalContext.current
+    val readiness = TaskNotificationScheduler.readiness(context)
+    if (readiness.readyForScheduling && !readiness.isHuaweiDevice) return
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text("حالة التنبيهات", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            if (!readiness.notificationsAllowed) {
+                Text("إذن الإشعارات غير مكتمل؛ لن تظهر التنبيهات قبل السماح به.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (!readiness.exactAlarmsAllowed) {
+                Text("صلاحية التنبيهات الدقيقة غير مكتملة؛ قد يتأخر التنبيه عن وقته.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (readiness.isHuaweiDevice) {
+                Text(
+                    "على أجهزة هواوي: من «إدارة تشغيل التطبيقات» اسمح بالتشغيل التلقائي والتشغيل الثانوي والتشغيل في الخلفية للتطبيق.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (!readiness.batteryOptimizationIgnored) {
+                    Text("لا يزال النظام يطبق تحسين البطارية على التطبيق؛ قد يمنع EMUI التنبيه عند إغلاقه.", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
+                }
+            }
+            Text(
+                "إغلاق التطبيق من التطبيقات الأخيرة مدعوم. أمّا «فرض الإيقاف» من إعدادات أندرويد فيوقف التنبيهات حتى تفتح التطبيق مجدداً.",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!readiness.notificationsAllowed || !readiness.exactAlarmsAllowed) {
+                    TextButton(onClick = onConfigureNotifications) { Text("إكمال الصلاحيات") }
+                    TextButton(onClick = { TaskNotificationScheduler.openNotificationSettings(context) }) { Text("إعدادات التنبيهات") }
+                }
+                if (readiness.isHuaweiDevice) {
+                    TextButton(onClick = { TaskNotificationScheduler.openHuaweiAppLaunchSettings(context) }) { Text("إدارة تشغيل هواوي") }
+                }
+            }
+        }
     }
 }
 
@@ -609,6 +688,7 @@ private fun TaskList(
     onTaskUpdated: (Task) -> Unit,
     onTaskDeleted: (Long) -> Unit,
 ) {
+    var openSwipeTaskId by remember { mutableStateOf<Long?>(null) }
     val categoryById = categories.associateBy { it.id }
     val orderedActive = activeTasks.sortedWith(compareByDescending<Task> { it.isPinned }.thenByDescending { it.id })
     val orderedCompleted = completedTasks.sortedWith(compareByDescending<Task> { it.isPinned }.thenByDescending { it.id })
@@ -624,6 +704,19 @@ private fun TaskList(
         return
     }
 
+    fun taskCard(task: Task) {
+        TaskCard(
+            task = task,
+            category = categoryById[task.categoryId],
+            isSwipeOpen = openSwipeTaskId == task.id,
+            onSwipeOpened = { openSwipeTaskId = task.id },
+            onSwipeClosed = { if (openSwipeTaskId == task.id) openSwipeTaskId = null },
+            onEditTask = onEditTask,
+            onTaskUpdated = onTaskUpdated,
+            onTaskDeleted = onTaskDeleted,
+        )
+    }
+
     LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item(key = "active-heading") { SectionTitle("المهام الحالية", orderedActive.size) }
         if (!draft?.title.isNullOrBlank()) {
@@ -634,15 +727,11 @@ private fun TaskList(
                 Text("لا توجد مهام حالية.", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp))
             }
         } else {
-            items(orderedActive, key = { it.id }) { task ->
-                TaskCard(task, categoryById[task.categoryId], onEditTask, onTaskUpdated, onTaskDeleted)
-            }
+            items(orderedActive, key = { it.id }) { task -> taskCard(task) }
         }
         if (orderedCompleted.isNotEmpty()) {
             item(key = "completed-heading") { SectionTitle("المكتملة", orderedCompleted.size) }
-            items(orderedCompleted, key = { it.id }) { task ->
-                TaskCard(task, categoryById[task.categoryId], onEditTask, onTaskUpdated, onTaskDeleted)
-            }
+            items(orderedCompleted, key = { it.id }) { task -> taskCard(task) }
         }
     }
 }
@@ -674,15 +763,30 @@ private fun DraftTaskCard(draft: TaskDraft, onEdit: () -> Unit) {
 private fun TaskCard(
     task: Task,
     category: Category?,
+    isSwipeOpen: Boolean,
+    onSwipeOpened: () -> Unit,
+    onSwipeClosed: () -> Unit,
     onEditTask: (Long) -> Unit,
     onTaskUpdated: (Task) -> Unit,
     onTaskDeleted: (Long) -> Unit,
 ) {
     SwipeTaskRow(
-        task = task,
-        onEdit = { onEditTask(task.id) },
-        onPin = { onTaskUpdated(task.copy(isPinned = !task.isPinned)) },
-        onDelete = { onTaskDeleted(task.id) },
+        taskId = task.id,
+        isOpen = isSwipeOpen,
+        onOpen = onSwipeOpened,
+        onClose = onSwipeClosed,
+        onEdit = {
+            onSwipeClosed()
+            onEditTask(task.id)
+        },
+        onPin = {
+            onSwipeClosed()
+            onTaskUpdated(task.copy(isPinned = !task.isPinned))
+        },
+        onDelete = {
+            onSwipeClosed()
+            onTaskDeleted(task.id)
+        },
     ) {
         val shape = RoundedCornerShape(18.dp)
         Card(
@@ -742,47 +846,69 @@ private fun TaskCard(
 
 @Composable
 private fun SwipeTaskRow(
-    task: Task,
+    taskId: Long,
+    isOpen: Boolean,
+    onOpen: () -> Unit,
+    onClose: () -> Unit,
     onEdit: () -> Unit,
     onPin: () -> Unit,
     onDelete: () -> Unit,
     content: @Composable () -> Unit,
 ) {
     val density = LocalDensity.current
-    val actionWidth = with(density) { 216.dp.toPx() }
-    var offsetX by remember(task.id) { mutableFloatStateOf(0f) }
-    Box(modifier = Modifier.fillMaxWidth()) {
-        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-            Row(
-                modifier = Modifier.align(Alignment.CenterEnd).width(216.dp).height(82.dp),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                SwipeAction("تعديل", Icons.Outlined.Edit, MaterialTheme.colorScheme.primary, onEdit, Modifier.weight(1f))
-                SwipeAction("أعلى", Icons.Outlined.PushPin, MaterialTheme.colorScheme.secondary, onPin, Modifier.weight(1f))
-                SwipeAction("حذف", Icons.Outlined.Delete, MaterialTheme.colorScheme.error, onDelete, Modifier.weight(1f))
+    val actionWidth = with(density) { 228.dp.toPx() }
+    var dragOffset by remember(taskId) { mutableFloatStateOf(0f) }
+    var isDragging by remember(taskId) { mutableStateOf(false) }
+    var cardHeightPx by remember(taskId) { mutableIntStateOf(0) }
+    val settledOffset by animateFloatAsState(
+        targetValue = if (isOpen) actionWidth else 0f,
+        animationSpec = tween(durationMillis = 180),
+        label = "task-swipe-settle",
+    )
+    val displayedOffset = if (isDragging) dragOffset else settledOffset
+    val actionHeight = with(density) { cardHeightPx.toDp() }
+    val dragState = rememberDraggableState { delta ->
+        val next = (dragOffset + delta).coerceIn(0f, actionWidth)
+        dragOffset = next
+        if (next > 0f && !isOpen) onOpen()
+    }
+
+    Box(modifier = Modifier.fillMaxWidth().clipToBounds()) {
+        if (displayedOffset > 0.5f && cardHeightPx > 0) {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .width(228.dp)
+                        .height(actionHeight)
+                        .zIndex(0f),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    SwipeAction("تعديل", Icons.Outlined.Edit, MaterialTheme.colorScheme.primary, onEdit, Modifier.weight(1f))
+                    SwipeAction("أعلى", Icons.Outlined.PushPin, MaterialTheme.colorScheme.secondary, onPin, Modifier.weight(1f))
+                    SwipeAction("حذف", Icons.Outlined.Delete, MaterialTheme.colorScheme.error, onDelete, Modifier.weight(1f))
+                }
             }
         }
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .offset { IntOffset(offsetX.roundToInt(), 0) }
-                .pointerInput(task.id) {
-                    detectHorizontalDragGestures(
-                        onHorizontalDrag = { change, amount ->
-                            change.consume()
-                            offsetX = (offsetX + amount).coerceIn(0f, actionWidth)
-                        },
-                        onDragEnd = {
-                            if (offsetX >= actionWidth * 0.9f) {
-                                onDelete()
-                                offsetX = 0f
-                            } else {
-                                offsetX = if (offsetX > actionWidth * 0.22f) actionWidth else 0f
-                            }
-                        },
-                        onDragCancel = { offsetX = 0f },
-                    )
-                },
+                .zIndex(1f)
+                .onSizeChanged { cardHeightPx = it.height }
+                .offset { IntOffset(displayedOffset.roundToInt(), 0) }
+                .draggable(
+                    state = dragState,
+                    orientation = Orientation.Horizontal,
+                    startDragImmediately = false,
+                    onDragStarted = {
+                        isDragging = true
+                        dragOffset = if (isOpen) actionWidth else 0f
+                    },
+                    onDragStopped = { _ ->
+                        isDragging = false
+                        if (dragOffset >= actionWidth * 0.24f) onOpen() else onClose()
+                    },
+                ),
         ) { content() }
     }
 }
@@ -795,7 +921,10 @@ private fun SwipeAction(
     onClick: () -> Unit,
     modifier: Modifier,
 ) {
-    Surface(modifier = modifier.fillMaxSize().clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick), color = color) {
+    Surface(
+        modifier = modifier.fillMaxSize().clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick),
+        color = color,
+    ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Icon(icon, label, Modifier.size(19.dp), MaterialTheme.colorScheme.onPrimary)
             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary)
@@ -1428,6 +1557,7 @@ private fun SelectedDateTasks(
     onTaskUpdated: (Task) -> Unit,
     onTaskDeleted: (Long) -> Unit,
 ) {
+    var openSwipeTaskId by remember { mutableStateOf<Long?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = heading,
@@ -1468,6 +1598,9 @@ private fun SelectedDateTasks(
                 TaskCard(
                     task = task,
                     category = categoryById[task.categoryId],
+                    isSwipeOpen = openSwipeTaskId == task.id,
+                    onSwipeOpened = { openSwipeTaskId = task.id },
+                    onSwipeClosed = { if (openSwipeTaskId == task.id) openSwipeTaskId = null },
                     onEditTask = onEditTask,
                     onTaskUpdated = onTaskUpdated,
                     onTaskDeleted = onTaskDeleted,
