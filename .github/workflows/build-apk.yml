@@ -53,16 +53,21 @@ jobs:
           arch: x86_64
           profile: pixel_2
           disable-animations: true
+          working-directory: .
           script: |
-            exec > "$GITHUB_WORKSPACE/swipe-emulator-test.log" 2>&1
-            set -x
-            adb shell setprop persist.sys.locale ar-SA
-            adb reboot
-            adb wait-for-device
-            until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep 2; done
-            adb shell input keyevent 82
-            adb shell getprop persist.sys.locale | grep -E '^ar-SA$'
-            ./gradlew --no-daemon connectedDebugAndroidTest --stacktrace
+            (
+              set -x
+              adb shell setprop persist.sys.locale ar-SA
+              adb reboot
+              adb wait-for-device
+              until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep 2; done
+              adb shell input keyevent 82
+              adb shell getprop persist.sys.locale | grep -E '^ar-SA$'
+              ./gradlew --no-daemon connectedDebugAndroidTest --stacktrace
+            ) > swipe-emulator-test.log 2>&1
+            result=$?
+            cat swipe-emulator-test.log
+            exit "$result"
 
       - name: Publish swipe emulator test log
         if: steps.swipe_test.outcome == 'failure'
