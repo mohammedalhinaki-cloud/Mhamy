@@ -1,6 +1,5 @@
 package com.mahami.app
 
-import android.view.View
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertExists
@@ -12,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -19,7 +19,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Runs on an Arabic emulator: physical right opens the left-side action panel in RTL. */
+/** Runs the Arabic RTL application: a physical right swipe opens the left-side action panel. */
 @RunWith(AndroidJUnit4::class)
 class TaskSwipeRtlInstrumentedTest {
     @get:Rule
@@ -51,9 +51,13 @@ class TaskSwipeRtlInstrumentedTest {
 
     @Test
     fun rightSwipe_revealsThreeActions_andEachActionWorks_inArabicRtl() {
-        composeRule.runOnIdle {
-            assertEquals(View.LAYOUT_DIRECTION_RTL, composeRule.activity.window.decorView.layoutDirection)
-        }
+        assertEquals(
+            LayoutDirection.Rtl,
+            composeRule.onNodeWithTag(cardTag(firstTaskId), useUnmergedTree = true)
+                .fetchSemanticsNode()
+                .layoutInfo
+                .layoutDirection,
+        )
 
         // A physical right swipe opens exactly the three actions on the first task.
         swipeRight(firstTaskId)

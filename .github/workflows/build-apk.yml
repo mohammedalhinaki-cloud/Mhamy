@@ -43,7 +43,7 @@ jobs:
           set -o pipefail
           ./gradlew --no-daemon assembleDebug --stacktrace 2>&1 | tee gradle-build.log
 
-      - name: Run real swipe interaction test on an Arabic RTL emulator
+      - name: Run real swipe interaction test in the Arabic RTL application
         id: swipe_test
         if: steps.assemble.outcome == 'success'
         continue-on-error: true
@@ -55,7 +55,7 @@ jobs:
           disable-animations: true
           working-directory: .
           script: >-
-            sh -c 'log=/home/runner/work/Mhamy/Mhamy/swipe-emulator-test.log; { set -ex; adb shell setprop persist.sys.locale ar-SA; adb reboot; adb wait-for-device; until adb shell getprop sys.boot_completed | grep -q 1; do sleep 2; done; adb shell input keyevent 82; adb shell getprop persist.sys.locale | grep -q "^ar-SA$"; ./gradlew --no-daemon connectedDebugAndroidTest --stacktrace; } > "$log" 2>&1; result=$?; cat "$log"; exit "$result"'
+            sh -c 'log=/home/runner/work/Mhamy/Mhamy/swipe-emulator-test.log; { set -ex; ./gradlew --no-daemon connectedDebugAndroidTest --stacktrace; } > "$log" 2>&1; result=$?; cat "$log"; exit "$result"'
 
       - name: Publish swipe emulator test log
         if: steps.swipe_test.outcome == 'failure'
