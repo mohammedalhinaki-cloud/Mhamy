@@ -86,12 +86,15 @@ class TaskSwipeRtlInstrumentedTest {
         composeRule.onNodeWithTag(editTag(secondTaskId)).assertIsDisplayed()
         waitForTagToDisappear(editTag(firstTaskId))
 
-        // A physical left swipe closes the active row cleanly; repeat it to catch stuck state.
-        repeat(3) {
+        // Repeated physical left/right swipes must settle their animation within the timeout,
+        // keep the UI responsive, and never delete the task on their own.
+        repeat(5) {
             swipeLeft(secondTaskId)
             waitForTagToDisappear(editTag(secondTaskId))
+            waitForText("مهمة اختبار ثانية")
             swipeRight(secondTaskId)
             composeRule.onNodeWithTag(editTag(secondTaskId)).assertIsDisplayed()
+            waitForText("مهمة اختبار ثانية")
         }
 
         // Delete is explicit: it opens confirmation and never removes a task from swipe distance.

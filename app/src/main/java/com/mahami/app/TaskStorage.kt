@@ -36,6 +36,8 @@ data class MahamiData(
     val tasks: List<Task>,
     val categories: List<Category>,
     val drafts: List<TaskDraft> = emptyList(),
+    val selectedTasksCategoryId: Long? = null,
+    val selectedScheduledCategoryId: Long? = null,
 )
 
 /**
@@ -49,7 +51,8 @@ class TaskStorage(context: Context) {
         val tasks = readTasks()
         val parsedCategories = readCategories()
         val drafts = readDrafts()
-        val data = normalize(tasks, parsedCategories, drafts)
+        val selections = readFilterSelections()
+        val data = normalize(tasks, parsedCategories, drafts, selections)
         if (data.requiresWrite) write(data.value)
         return data.value
     }
@@ -59,6 +62,7 @@ class TaskStorage(context: Context) {
             .putString(TASKS_KEY, data.tasks.toTasksJsonArray().toString())
             .putString(CATEGORIES_KEY, data.categories.toCategoriesJsonArray().toString())
             .putString(DRAFTS_KEY, data.drafts.toDraftsJsonArray().toString())
+            .putString(FILTER_SELECTIONS_KEY, data.toFilterSelectionsJson().toString())
             .apply()
     }
 
@@ -66,24 +70,38 @@ class TaskStorage(context: Context) {
         storedTasks: List<Task>,
         storedCategories: List<StoredCategory>,
         drafts: List<TaskDraft>,
+        selections: FilterSelections,
     ): NormalizedData {
         if (storedCategories.isEmpty()) {
             val categories = if (preferences.contains(CATEGORIES_KEY)) emptyList() else defaultCategories
+            val normalizedSelections = selections.validFor(categories)
             return NormalizedData(
-                value = MahamiData(storedTasks, categories, drafts),
-                requiresWrite = !preferences.contains(CATEGORIES_KEY) && (storedTasks.isNotEmpty() || drafts.isNotEmpty()),
+                value = MahamiData(
+                    tasks = storedTasks,
+                    categories = categories,
+                    drafts = drafts,
+                    selectedTasksCategoryId = normalizedSelections.tasksCategoryId,
+                    selectedScheduledCategoryId = normalizedSelections.scheduledCategoryId,
+                ),
+                requiresWrite = (
+                    !preferences.contains(CATEGORIES_KEY) && (storedTasks.isNotEmpty() || drafts.isNotEmpty())
+                    ) || normalizedSelections != selections,
             )
         }
 
         val hasLegacyCategories = storedCategories.any { it.section == null }
         if (!hasLegacyCategories) {
+            val categories = storedCategories.map { it.toCategory() }
+            val normalizedSelections = selections.validFor(categories)
             return NormalizedData(
                 value = MahamiData(
                     tasks = storedTasks,
-                    categories = storedCategories.map { it.toCategory() },
+                    categories = categories,
                     drafts = drafts,
+                    selectedTasksCategoryId = normalizedSelections.tasksCategoryId,
+                    selectedScheduledCategoryId = normalizedSelections.scheduledCategoryId,
                 ),
-                requiresWrite = false,
+                requiresWrite = normalizedSelections != selections,
             )
         }
 
@@ -122,8 +140,20 @@ class TaskStorage(context: Context) {
                 draft
             }
         }
+        val categories = taskCategories + scheduledCategories
+        val migratedSelections = selections.copy(
+            scheduledCategoryId = selections.scheduledCategoryId?.let { selectedId ->
+                scheduledIdByLegacyId[selectedId] ?: selectedId
+            },
+        ).validFor(categories)
         return NormalizedData(
-            value = MahamiData(migratedTasks, taskCategories + scheduledCategories, migratedDrafts),
+            value = MahamiData(
+                tasks = migratedTasks,
+                categories = categories,
+                drafts = migratedDrafts,
+                selectedTasksCategoryId = migratedSelections.tasksCategoryId,
+                selectedScheduledCategoryId = migratedSelections.scheduledCategoryId,
+            ),
             requiresWrite = true,
         )
     }
@@ -191,6 +221,14 @@ class TaskStorage(context: Context) {
         }
     }.getOrDefault(emptyList())
 
+    private fun readFilterSelections(): FilterSelections = runCatching {
+        val saved = JSONObject(preferences.getString(FILTER_SELECTIONS_KEY, "{}") ?: "{}")
+        FilterSelections(
+            tasksCategoryId = saved.optionalLong("tasksCategoryId"),
+            scheduledCategoryId = saved.optionalLong("scheduledCategoryId"),
+        )
+    }.getOrDefault(FilterSelections())
+
     private fun List<Task>.toTasksJsonArray() = JSONArray().also { array ->
         forEach { task ->
             array.put(
@@ -232,6 +270,11 @@ class TaskStorage(context: Context) {
         }
     }
 
+    private fun MahamiData.toFilterSelectionsJson() = JSONObject().apply {
+        put("tasksCategoryId", selectedTasksCategoryId)
+        put("scheduledCategoryId", selectedScheduledCategoryId)
+    }
+
     private fun JSONObject.optionalLong(key: String): Long? =
         if (has(key) && !isNull(key)) optLong(key) else null
 
@@ -249,6 +292,20 @@ class TaskStorage(context: Context) {
         fun toCategory() = Category(id, name, color, requireNotNull(section))
     }
 
+    private data class FilterSelections(
+        val tasksCategoryId: Long? = null,
+        val scheduledCategoryId: Long? = null,
+    ) {
+        fun validFor(categories: List<Category>) = FilterSelections(
+            tasksCategoryId = tasksCategoryId?.takeIf { selectedId ->
+                categories.any { it.id == selectedId && it.section == TaskSection.TASKS }
+            },
+            scheduledCategoryId = scheduledCategoryId?.takeIf { selectedId ->
+                categories.any { it.id == selectedId && it.section == TaskSection.SCHEDULED }
+            },
+        )
+    }
+
     private data class NormalizedData(
         val value: MahamiData,
         val requiresWrite: Boolean,
@@ -259,6 +316,7 @@ class TaskStorage(context: Context) {
         const val TASKS_KEY = "tasks"
         const val CATEGORIES_KEY = "categories"
         const val DRAFTS_KEY = "drafts"
+        const val FILTER_SELECTIONS_KEY = "filter_selections"
     }
 }
 

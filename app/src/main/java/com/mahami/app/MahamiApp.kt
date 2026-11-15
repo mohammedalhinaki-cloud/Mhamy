@@ -110,6 +110,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.chrono.HijrahChronology
@@ -145,10 +146,9 @@ fun MahamiApp(
     val context = LocalContext.current
     var data by remember { mutableStateOf(initialData) }
     var activeTabName by rememberSaveable { mutableStateOf(AppTab.TASKS.name) }
-    var selectedTasksCategoryId by rememberSaveable { mutableStateOf<Long?>(null) }
-    var selectedScheduledCategoryId by rememberSaveable { mutableStateOf<Long?>(null) }
     var editorSectionName by rememberSaveable { mutableStateOf<String?>(null) }
     var editingTaskId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var editorInitialDueAt by rememberSaveable { mutableStateOf<Long?>(null) }
     var addCategorySectionName by rememberSaveable { mutableStateOf<String?>(null) }
     var editingCategoryId by rememberSaveable { mutableStateOf<Long?>(null) }
     var deleteConfirmationTaskId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -192,10 +192,36 @@ fun MahamiApp(
         updateData(data.copy(tasks = data.tasks.map { if (it.id == task.id) task else it }))
     }
 
+    fun openTaskEditor(section: TaskSection, selectedDate: LocalDate? = null) {
+        editingTaskId = null
+        editorInitialDueAt = selectedDate?.atTime(
+            LocalTime.now().withSecond(0).withNano(0),
+        )?.atZone(ZoneId.systemDefault())?.toInstant()?.toEpochMilli()
+        editorSectionName = section.name
+    }
+
     fun editTask(taskId: Long) {
         val task = data.tasks.find { it.id == taskId } ?: return
         editingTaskId = task.id
+        editorInitialDueAt = null
         editorSectionName = if (task.dueAt == null) TaskSection.TASKS.name else TaskSection.SCHEDULED.name
+    }
+
+    fun selectCategoryFilter(section: TaskSection, categoryId: Long) {
+        val isSelected = when (section) {
+            TaskSection.TASKS -> data.selectedTasksCategoryId == categoryId
+            TaskSection.SCHEDULED -> data.selectedScheduledCategoryId == categoryId
+        }
+        updateData(
+            when (section) {
+                TaskSection.TASKS -> data.copy(
+                    selectedTasksCategoryId = if (isSelected) null else categoryId,
+                )
+                TaskSection.SCHEDULED -> data.copy(
+                    selectedScheduledCategoryId = if (isSelected) null else categoryId,
+                )
+            },
+        )
     }
 
     fun deleteTask(taskId: Long) {
@@ -218,8 +244,18 @@ fun MahamiApp(
             (data.categories.maxOfOrNull { it.id } ?: 0L) + 1L,
         )
         val color = DEFAULT_CATEGORY_COLORS[data.categories.size % DEFAULT_CATEGORY_COLORS.size]
-        updateData(data.copy(categories = data.categories + Category(nextId, name, color, section)))
-        if (section == TaskSection.TASKS) selectedTasksCategoryId = nextId else selectedScheduledCategoryId = nextId
+        updateData(
+            when (section) {
+                TaskSection.TASKS -> data.copy(
+                    categories = data.categories + Category(nextId, name, color, section),
+                    selectedTasksCategoryId = nextId,
+                )
+                TaskSection.SCHEDULED -> data.copy(
+                    categories = data.categories + Category(nextId, name, color, section),
+                    selectedScheduledCategoryId = nextId,
+                )
+            },
+        )
     }
 
     fun renameCategory(categoryId: Long, name: String) {
@@ -238,10 +274,10 @@ fun MahamiApp(
                 drafts = data.drafts.map { draft ->
                     if (draft.categoryId == categoryId) draft.copy(categoryId = null) else draft
                 },
+                selectedTasksCategoryId = data.selectedTasksCategoryId.takeUnless { it == categoryId },
+                selectedScheduledCategoryId = data.selectedScheduledCategoryId.takeUnless { it == categoryId },
             ),
         )
-        if (selectedTasksCategoryId == categoryId) selectedTasksCategoryId = null
-        if (selectedScheduledCategoryId == categoryId) selectedScheduledCategoryId = null
     }
 
     MaterialTheme(colorScheme = mahamiColorScheme(), typography = mahamiTypography) {
@@ -262,6 +298,7 @@ fun MahamiApp(
                             NavigationBarItem(
                                 selected = selected,
                                 onClick = { activeTabName = tab.name },
+                                modifier = Modifier.testTag("tab-${tab.name}"),
                                 icon = {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Icon(tabIcon(tab), tab.label, Modifier.size(20.dp))
@@ -296,14 +333,14 @@ fun MahamiApp(
                         AppTab.TASKS -> TasksScreen(
                             tasks = data.tasks.filter { it.dueAt == null },
                             categories = data.categories.filter { it.section == TaskSection.TASKS },
-                            selectedCategoryId = selectedTasksCategoryId,
+                            selectedCategoryId = data.selectedTasksCategoryId,
                             draft = data.drafts.find { it.section == TaskSection.TASKS },
                             onCategorySelected = { categoryId ->
-                                selectedTasksCategoryId = if (selectedTasksCategoryId == categoryId) null else categoryId
+                                selectCategoryFilter(TaskSection.TASKS, categoryId)
                             },
                             onAddCategory = { addCategorySectionName = TaskSection.TASKS.name },
                             onEditCategory = { editingCategoryId = it },
-                            onAddTask = { editorSectionName = TaskSection.TASKS.name },
+                            onAddTask = { openTaskEditor(TaskSection.TASKS) },
                             onEditTask = ::editTask,
                             onTaskUpdated = ::updateTask,
                             onTaskDeleted = { deleteConfirmationTaskId = it },
@@ -312,14 +349,14 @@ fun MahamiApp(
                         AppTab.SCHEDULED -> ScheduledTasksScreen(
                             tasks = data.tasks.filter { it.dueAt != null },
                             categories = data.categories.filter { it.section == TaskSection.SCHEDULED },
-                            selectedCategoryId = selectedScheduledCategoryId,
+                            selectedCategoryId = data.selectedScheduledCategoryId,
                             draft = data.drafts.find { it.section == TaskSection.SCHEDULED },
                             onCategorySelected = { categoryId ->
-                                selectedScheduledCategoryId = if (selectedScheduledCategoryId == categoryId) null else categoryId
+                                selectCategoryFilter(TaskSection.SCHEDULED, categoryId)
                             },
                             onAddCategory = { addCategorySectionName = TaskSection.SCHEDULED.name },
                             onEditCategory = { editingCategoryId = it },
-                            onAddTask = { editorSectionName = TaskSection.SCHEDULED.name },
+                            onAddTask = { openTaskEditor(TaskSection.SCHEDULED) },
                             onEditTask = ::editTask,
                             onTaskUpdated = ::updateTask,
                             onTaskDeleted = { deleteConfirmationTaskId = it },
@@ -328,7 +365,7 @@ fun MahamiApp(
                         AppTab.CALENDAR -> CalendarScreen(
                             tasks = data.tasks,
                             categories = data.categories.filter { it.section == TaskSection.SCHEDULED },
-                            onAddTask = { editorSectionName = TaskSection.SCHEDULED.name },
+                            onAddTask = { selectedDate -> openTaskEditor(TaskSection.SCHEDULED, selectedDate) },
                             onEditTask = ::editTask,
                             onTaskUpdated = ::updateTask,
                             onTaskDeleted = { deleteConfirmationTaskId = it },
@@ -349,12 +386,13 @@ fun MahamiApp(
                     categories = data.categories.filter { it.section == editorSection },
                     initialTitle = existingTask?.title ?: draft?.title.orEmpty(),
                     initialCategoryId = existingTask?.categoryId ?: draft?.categoryId,
-                    initialDueAt = existingTask?.dueAt ?: draft?.dueAt,
+                    initialDueAt = existingTask?.dueAt ?: editorInitialDueAt ?: draft?.dueAt,
                     isEditing = existingTask != null,
                     onDraftChanged = if (existingTask == null) ::saveDraft else null,
                     onDismiss = {
                         editorSectionName = null
                         editingTaskId = null
+                        editorInitialDueAt = null
                     },
                     onSave = { title, categoryId, dueAt ->
                         if (existingTask == null) {
@@ -372,6 +410,7 @@ fun MahamiApp(
                         if (editorSection == TaskSection.SCHEDULED) requestScheduledNotifications()
                         editorSectionName = null
                         editingTaskId = null
+                        editorInitialDueAt = null
                     },
                 )
             }
@@ -575,6 +614,7 @@ private fun CategoryFilters(
                 label = category.name,
                 selected = selectedCategoryId == category.id,
                 dotColor = category.color,
+                testTag = "category-filter-${category.id}",
                 onClick = { onCategorySelected(category.id) },
                 onLongClick = { onCategoryLongClick(category.id) },
             )
@@ -584,6 +624,7 @@ private fun CategoryFilters(
                 label = "+ تصنيف",
                 selected = false,
                 dotColor = null,
+                testTag = "category-filter-add",
                 onClick = onAddCategory,
                 onLongClick = null,
             )
@@ -597,12 +638,14 @@ private fun CategoryFilterChip(
     label: String,
     selected: Boolean,
     dotColor: Long?,
+    testTag: String,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)?,
 ) {
     val shape = RoundedCornerShape(16.dp)
     Surface(
         modifier = Modifier
+            .testTag(testTag)
             .height(44.dp)
             .clip(shape)
             .border(
@@ -1057,7 +1100,9 @@ private fun TaskEditorDialog(
                         title = value
                         saveDraft(updatedTitle = value)
                     },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("task-editor-title"),
                     label = { Text("ما المهمة؟") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -1204,7 +1249,7 @@ private fun EditCategoryDialog(
 private fun CalendarScreen(
     tasks: List<Task>,
     categories: List<Category>,
-    onAddTask: () -> Unit,
+    onAddTask: (LocalDate) -> Unit,
     onEditTask: (Long) -> Unit,
     onTaskUpdated: (Task) -> Unit,
     onTaskDeleted: (Long) -> Unit,
@@ -1254,9 +1299,9 @@ private fun CalendarScreen(
     ) {
         ScreenHeading(
             title = "التقويم",
-            subtitle = "اختر نوع التقويم؛ تظهر النقاط الملوّنة للمهام ذات الموعد.",
+            subtitle = "اختر أي تاريخ لإضافة مهمة بموعده مباشرة.",
             actionLabel = "إضافة موعد",
-            onAction = onAddTask,
+            onAction = { onAddTask(selectedDate) },
         )
         CalendarModeFilter(
             mode = calendarMode,
@@ -1277,7 +1322,10 @@ private fun CalendarScreen(
                     selectedDate = selectedDate,
                     tasksByDate = tasksByDate,
                     categoryById = categoryById,
-                    onDateSelected = { selectedDateText = it.toString() },
+                    onDateSelected = { date ->
+                        selectedDateText = date.toString()
+                        onAddTask(date)
+                    },
                 )
             }
 
@@ -1293,7 +1341,10 @@ private fun CalendarScreen(
                     selectedDate = selectedDate,
                     tasksByDate = tasksByDate,
                     categoryById = categoryById,
-                    onDateSelected = { selectedDateText = it.toString() },
+                    onDateSelected = { date ->
+                        selectedDateText = date.toString()
+                        onAddTask(date)
+                    },
                 )
             }
         }
@@ -1532,6 +1583,7 @@ private fun CalendarDayCell(
     }
     Surface(
         modifier = modifier
+            .testTag("calendar-day-$date")
             .aspectRatio(1f)
             .clip(CircleShape)
             .clickable(onClick = onClick),
