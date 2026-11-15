@@ -31,7 +31,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -312,7 +311,6 @@ fun MahamiApp(
                             onEditCategory = { editingCategoryId = it },
                             onAddTask = { editorSectionName = TaskSection.SCHEDULED.name },
                             onEditTask = { editingTaskId = it },
-                            onConfigureNotifications = ::requestScheduledNotifications,
                             onTaskUpdated = ::updateTask,
                             onTaskDeleted = { deleteConfirmationTaskId = it },
                         )
@@ -479,7 +477,6 @@ private fun ScheduledTasksScreen(
     onEditCategory: (Long) -> Unit,
     onAddTask: () -> Unit,
     onEditTask: (Long) -> Unit,
-    onConfigureNotifications: () -> Unit,
     onTaskUpdated: (Task) -> Unit,
     onTaskDeleted: (Long) -> Unit,
 ) {
@@ -497,7 +494,6 @@ private fun ScheduledTasksScreen(
             actionLabel = "إضافة موعد",
             onAction = onAddTask,
         )
-        NotificationStatusCard(onConfigureNotifications)
         CategoryFilters(
             categories = categories,
             selectedCategoryId = selectedCategoryId,
@@ -520,56 +516,6 @@ private fun ScheduledTasksScreen(
             onTaskUpdated = onTaskUpdated,
             onTaskDeleted = onTaskDeleted,
         )
-    }
-}
-
-@Composable
-private fun NotificationStatusCard(onConfigureNotifications: () -> Unit) {
-    val context = LocalContext.current
-    val readiness = TaskNotificationScheduler.readiness(context)
-    if (readiness.readyForScheduling && !readiness.isHuaweiDevice) return
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text("حالة التنبيهات", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            if (!readiness.notificationsAllowed) {
-                Text("إذن الإشعارات غير مكتمل؛ لن تظهر التنبيهات قبل السماح به.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (!readiness.exactAlarmsAllowed) {
-                Text("صلاحية التنبيهات الدقيقة غير مكتملة؛ قد يتأخر التنبيه عن وقته.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (readiness.isHuaweiDevice) {
-                Text(
-                    "على أجهزة هواوي: من «إدارة تشغيل التطبيقات» اسمح بالتشغيل التلقائي والتشغيل الثانوي والتشغيل في الخلفية للتطبيق.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (!readiness.batteryOptimizationIgnored) {
-                    Text("لا يزال النظام يطبق تحسين البطارية على التطبيق؛ قد يمنع EMUI التنبيه عند إغلاقه.", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
-                }
-            }
-            Text(
-                "إغلاق التطبيق من التطبيقات الأخيرة مدعوم. أمّا «فرض الإيقاف» من إعدادات أندرويد فيوقف التنبيهات حتى تفتح التطبيق مجدداً.",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (!readiness.notificationsAllowed || !readiness.exactAlarmsAllowed) {
-                    TextButton(onClick = onConfigureNotifications) { Text("إكمال الصلاحيات") }
-                    TextButton(onClick = { TaskNotificationScheduler.openNotificationSettings(context) }) { Text("إعدادات التنبيهات") }
-                }
-                if (readiness.isHuaweiDevice) {
-                    TextButton(onClick = { TaskNotificationScheduler.openHuaweiAppLaunchSettings(context) }) { Text("إدارة تشغيل هواوي") }
-                }
-            }
-        }
     }
 }
 
@@ -718,21 +664,20 @@ private fun TaskList(
         )
     }
 
-    LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        item(key = "active-heading") { SectionTitle("المهام الحالية", orderedActive.size) }
-        if (!draft?.title.isNullOrBlank()) {
-            item(key = "draft-${draft?.section}") { DraftTaskCard(draft!!, onEmptyAction) }
-        }
+    Column(
+        modifier = modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        SectionTitle("المهام الحالية", orderedActive.size)
+        if (!draft?.title.isNullOrBlank()) DraftTaskCard(draft!!, onEmptyAction)
         if (orderedActive.isEmpty()) {
-            item(key = "active-empty") {
-                Text("لا توجد مهام حالية.", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp))
-            }
+            Text("لا توجد مهام حالية.", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp))
         } else {
-            items(orderedActive, key = { it.id }) { task -> taskCard(task) }
+            orderedActive.forEach { task -> taskCard(task) }
         }
         if (orderedCompleted.isNotEmpty()) {
-            item(key = "completed-heading") { SectionTitle("المكتملة", orderedCompleted.size) }
-            items(orderedCompleted, key = { it.id }) { task -> taskCard(task) }
+            SectionTitle("المكتملة", orderedCompleted.size)
+            orderedCompleted.forEach { task -> taskCard(task) }
         }
     }
 }
