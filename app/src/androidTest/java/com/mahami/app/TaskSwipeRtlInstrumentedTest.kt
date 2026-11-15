@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.LayoutDirection
@@ -120,13 +121,17 @@ class TaskSwipeRtlInstrumentedTest {
     }
 
     private fun swipeLeft(taskId: Long) {
-        // Once open, only the card's left-most local area is still on screen because the card
-        // has shifted physically right. Keep both positions in that visible strip so Android
-        // does not cancel the gesture when it crosses the viewport edge.
-        composeRule.onNodeWithTag(cardTag(taskId), useUnmergedTree = true).performTouchInput {
-            val centerY = height / 2f
-            down(Offset(width * 0.42f, centerY))
-            moveTo(Offset(width * 0.04f, centerY), delayMillis = 300)
+        // The open card is translated to the physical right, so inject the closing gesture at
+        // its actual on-screen bounds rather than at an off-screen local coordinate.
+        val cardBounds = composeRule
+            .onNodeWithTag(cardTag(taskId), useUnmergedTree = true)
+            .fetchSemanticsNode()
+            .boundsInRoot
+        composeRule.onRoot().performTouchInput {
+            val visibleWidth = width - cardBounds.left
+            val centerY = (cardBounds.top + cardBounds.bottom) / 2f
+            down(Offset(cardBounds.left + visibleWidth * 0.92f, centerY))
+            moveTo(Offset(cardBounds.left + visibleWidth * 0.15f, centerY), delayMillis = 300)
             up()
         }
     }
