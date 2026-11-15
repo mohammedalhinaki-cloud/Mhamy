@@ -54,7 +54,7 @@ jobs:
           profile: pixel_2
           disable-animations: true
           script: |
-            exec > swipe-emulator-test.log 2>&1
+            exec > "$GITHUB_WORKSPACE/swipe-emulator-test.log" 2>&1
             set -x
             adb shell setprop persist.sys.locale ar-SA
             adb reboot
@@ -78,11 +78,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          {
+            echo "# Swipe emulator command output"
+            if [ -s swipe-emulator-test.log ]; then cat swipe-emulator-test.log; else echo "No command log was written."; fi
+            echo
+            echo "# Instrumentation result XML"
+            find app/build/outputs/androidTest-results -name '*.xml' -type f -exec sh -c 'echo "--- $1"; cat "$1"' _ {} \; 2>/dev/null || true
+          } > swipe-test-diagnostic.txt
           gh release delete build-diagnostic --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" || true
           gh release create build-diagnostic \
             --target "$GITHUB_SHA" \
             --title "Temporary Android swipe test diagnostic" \
-            --notes-file swipe-emulator-test.log \
+            --notes-file swipe-test-diagnostic.txt \
             --repo "$GITHUB_REPOSITORY"
 
       - name: Publish APK artifact
