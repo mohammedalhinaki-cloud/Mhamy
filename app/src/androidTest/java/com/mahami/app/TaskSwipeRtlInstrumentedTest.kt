@@ -120,12 +120,13 @@ class TaskSwipeRtlInstrumentedTest {
     }
 
     private fun swipeLeft(taskId: Long) {
-        // Once open, only the card's left-most local area remains visible on screen because
-        // the card has shifted physically right. Begin there, then drag outside its bounds.
+        // Once open, only the card's left-most local area is still on screen because the card
+        // has shifted physically right. Keep both positions in that visible strip so Android
+        // does not cancel the gesture when it crosses the viewport edge.
         composeRule.onNodeWithTag(cardTag(taskId), useUnmergedTree = true).performTouchInput {
             val centerY = height / 2f
-            down(Offset(width * 0.20f, centerY))
-            moveTo(Offset(-width * 0.60f, centerY), delayMillis = 300)
+            down(Offset(width * 0.42f, centerY))
+            moveTo(Offset(width * 0.04f, centerY), delayMillis = 300)
             up()
         }
     }
