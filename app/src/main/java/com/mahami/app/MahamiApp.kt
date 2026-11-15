@@ -704,6 +704,7 @@ private fun TaskList(
         return
     }
 
+    @Composable
     fun taskCard(task: Task) {
         TaskCard(
             task = task,
