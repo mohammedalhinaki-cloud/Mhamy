@@ -13,7 +13,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.AnchoredDraggableDefaults
 import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.Orientation
@@ -43,6 +42,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
@@ -81,6 +81,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -821,31 +822,33 @@ private fun SwipeTaskRow(
             SwipeAnchor.Open at actionPanelWidthPx
         }
     }
-    val swipeState = remember(taskId) { AnchoredDraggableState(initialValue = SwipeAnchor.Closed) }
     val settleAnimation = remember { tween<Float>(durationMillis = 180) }
-    val flingBehavior = AnchoredDraggableDefaults.flingBehavior(
-        state = swipeState,
-        positionalThreshold = { distance -> distance * 0.40f },
-        animationSpec = settleAnimation,
-    )
+    val swipeState = remember(taskId, actionPanelWidthPx) {
+        AnchoredDraggableState(
+            initialValue = SwipeAnchor.Closed,
+            anchors = anchors,
+            positionalThreshold = { distance -> distance * 0.40f },
+            velocityThreshold = { with(density) { 96.dp.toPx() } },
+            snapAnimationSpec = settleAnimation,
+            decayAnimationSpec = exponentialDecay(),
+        )
+    }
     val latestIsOpen by rememberUpdatedState(isOpen)
     val latestOnOpen by rememberUpdatedState(onOpen)
     val latestOnClose by rememberUpdatedState(onClose)
     var cardHeightPx by remember(taskId) { mutableIntStateOf(0) }
 
-    // The parent owns which row is open. Anchors are installed before requesting any settle.
-    LaunchedEffect(isOpen, anchors) {
-        swipeState.updateAnchors(anchors)
+    // The parent owns which row is open. This state has fixed anchors, so it does not need
+    // to rebuild or update anchors while a user is dragging.
+    LaunchedEffect(isOpen) {
         val requestedAnchor = if (isOpen) SwipeAnchor.Open else SwipeAnchor.Closed
-        if (swipeState.currentValue != requestedAnchor || swipeState.targetValue != requestedAnchor) {
-            swipeState.animateTo(requestedAnchor, animationSpec = settleAnimation)
-        }
+        if (swipeState.currentValue != requestedAnchor) swipeState.animateTo(requestedAnchor)
     }
 
-    // Report only after the drag has settled. Parent state therefore changes once per swipe,
-    // not on every movement or as the finger crosses an intermediate threshold.
-    LaunchedEffect(swipeState.settledValue) {
-        when (swipeState.settledValue) {
+    // This legacy Compose version exposes the settled value as currentValue. The callback is
+    // consequently emitted once per finished gesture, never for individual drag deltas.
+    LaunchedEffect(swipeState.currentValue) {
+        when (swipeState.currentValue) {
             SwipeAnchor.Open -> if (!latestIsOpen) latestOnOpen()
             SwipeAnchor.Closed -> if (latestIsOpen) latestOnClose()
         }
@@ -899,7 +902,6 @@ private fun SwipeTaskRow(
                         // including when Arabic RTL content is inside the card.
                         reverseDirection = false,
                         startDragImmediately = false,
-                        flingBehavior = flingBehavior,
                     )
                     .zIndex(1f),
             ) {
