@@ -145,15 +145,18 @@ fun MahamiApp(
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { }
+    ) { granted ->
+        if (granted) TaskNotificationScheduler.requestExactAlarmAccess(context)
+    }
 
     fun requestScheduledNotifications() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            TaskNotificationScheduler.requestExactAlarmAccess(context)
         }
-        TaskNotificationScheduler.requestExactAlarmAccess(context)
     }
 
     fun updateData(updated: MahamiData) {
