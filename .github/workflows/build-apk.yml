@@ -49,14 +49,14 @@ jobs:
         continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 29
-          target: google_apis
-          arch: x86_64
-          profile: pixel_2
+          api-level: 28
+          target: default
+          arch: x86
+          profile: Nexus 6
           disable-animations: true
           working-directory: .
           script: >-
-            sh -c 'log=/home/runner/work/Mhamy/Mhamy/swipe-emulator-test.log; { set -ex; adb wait-for-device; until adb shell getprop sys.boot_completed | grep -q 1; do sleep 2; done; adb shell getprop ro.build.version.sdk | grep -q 29; ./gradlew --no-daemon connectedDebugAndroidTest --stacktrace; } > "$log" 2>&1; result=$?; cat "$log"; exit "$result"'
+            sh -c 'log=/home/runner/work/Mhamy/Mhamy/swipe-emulator-test.log; { set -ex; adb wait-for-device; until adb shell getprop sys.boot_completed | grep -q 1; do sleep 2; done; adb shell getprop ro.build.version.sdk | grep -q 28; ./gradlew --no-daemon connectedDebugAndroidTest --stacktrace; } > "$log" 2>&1; result=$?; cat "$log"; exit "$result"'
 
       - name: Publish swipe emulator test log
         if: steps.swipe_test.outcome == 'failure'
