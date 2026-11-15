@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - arena/ea5fc608-mhamy
+      - arena/19b458e3-mhamy
     paths:
       - "app/**"
       - "build.gradle.kts"
@@ -43,23 +43,66 @@ jobs:
           set -o pipefail
           ./gradlew --no-daemon assembleDebug --stacktrace 2>&1 | tee gradle-build.log
 
-      - name: Publish APK artifact
+      - name: Run real swipe interaction test in the Arabic RTL application
+        id: swipe_test
         if: steps.assemble.outcome == 'success'
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 28
+          target: default
+          arch: x86
+          profile: Nexus 6
+          disable-animations: true
+          working-directory: .
+          script: >-
+            sh -c 'log=/home/runner/work/Mhamy/Mhamy/swipe-emulator-test.log; { set -ex; adb wait-for-device; until adb shell getprop sys.boot_completed | grep -q 1; do sleep 2; done; adb shell getprop ro.build.version.sdk | grep -q 28; ./gradlew --no-daemon connectedDebugAndroidTest --stacktrace; } > "$log" 2>&1; result=$?; cat "$log"; exit "$result"'
+
+      - name: Publish swipe emulator test log
+        if: steps.swipe_test.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
-          name: Mahami-v1.4.1-debug-apk
+          name: swipe-rtl-emulator-test-log
+          path: /home/runner/work/Mhamy/Mhamy/swipe-emulator-test.log
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish swipe test diagnostic
+        if: steps.swipe_test.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "# Swipe emulator command output"
+            if [ -s /home/runner/work/Mhamy/Mhamy/swipe-emulator-test.log ]; then cat /home/runner/work/Mhamy/Mhamy/swipe-emulator-test.log; else echo "No command log was written."; fi
+            echo
+            echo "# Instrumentation result XML"
+            find app/build/outputs/androidTest-results -name '*.xml' -type f -exec sh -c 'echo "--- $1"; cat "$1"' _ {} \; 2>/dev/null || true
+          } > swipe-test-diagnostic.txt
+          gh release delete build-diagnostic --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" || true
+          gh release create build-diagnostic \
+            --target "$GITHUB_SHA" \
+            --title "Temporary Android swipe test diagnostic" \
+            --notes-file swipe-test-diagnostic.txt \
+            --repo "$GITHUB_REPOSITORY"
+
+      - name: Publish APK artifact
+        if: steps.assemble.outcome == 'success' && steps.swipe_test.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mahami-v1.5.5-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 90
 
       - name: Publish downloadable APK release
-        if: steps.assemble.outcome == 'success'
+        if: steps.assemble.outcome == 'success' && steps.swipe_test.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete build-diagnostic --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" || true
-          tag="v1.4.1"
-          asset="Mahami-v1.4.1.apk"
+          tag="v1.5.5"
+          asset="Mahami-v1.5.5.apk"
           cp app/build/outputs/apk/debug/app-debug.apk "$asset"
 
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -67,8 +110,8 @@ jobs:
           else
             gh release create "$tag" "$asset" \
               --target "$GITHUB_SHA" \
-              --title "مهامي 1.4.1 — أيقونة جديدة" \
-              --notes "أيقونة تطبيق حديثة بأسلوب الهوية الداكنة نفسها: Slate وIndigo وTeal، مع دعم أيقونات أندرويد الملوّنة وThemed Icons." \
+              --title "مهامي 1.5.5 — فلاتر وتاريخ من التقويم" \
+              --notes "يحفظ التطبيق آخر فلتر محدد لكل قسم، ويفتح إنشاء مهمة بموعد مسبق عند الضغط على أي تاريخ في التقويم. يتضمن أيضاً اختبار لمس فعلي للسحب RTL يتحقق من استقرار الرسوم وعدم الحذف العرضي." \
               --repo "$GITHUB_REPOSITORY"
           fi
 
@@ -86,6 +129,10 @@ jobs:
             --title "Temporary Android build diagnostic" \
             --notes-file diagnostic-notes.txt \
             --repo "$GITHUB_REPOSITORY"
+
+      - name: Fail when the swipe emulator test failed
+        if: steps.swipe_test.outcome == 'failure'
+        run: exit 1
 
       - name: Fail when the APK build failed
         if: steps.assemble.outcome == 'failure'
