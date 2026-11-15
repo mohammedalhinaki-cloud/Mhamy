@@ -13,9 +13,12 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.AnchoredDraggableDefaults
+import androidx.compose.foundation.gestures.AnchoredDraggableState
+import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.gestures.anchoredDraggable
+import androidx.compose.foundation.gestures.animateTo
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,7 +43,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
@@ -74,8 +76,8 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -790,6 +792,14 @@ private fun TaskCard(
     }
 }
 
+private enum class SwipeAnchor { Closed, Open }
+
+/**
+ * The outer layout is deliberately LTR only for geometry: a physical right swipe always
+ * translates the card toward the physical right and exposes the panel at physical left.
+ * The card content is composed again with the app's original (Arabic RTL) direction.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SwipeTaskRow(
     taskId: Long,
@@ -801,61 +811,103 @@ private fun SwipeTaskRow(
     onDelete: () -> Unit,
     content: @Composable () -> Unit,
 ) {
+    val contentLayoutDirection = LocalLayoutDirection.current
     val density = LocalDensity.current
-    val actionWidth = with(density) { 228.dp.toPx() }
-    var dragOffset by remember(taskId) { mutableFloatStateOf(0f) }
-    var isDragging by remember(taskId) { mutableStateOf(false) }
-    var cardHeightPx by remember(taskId) { mutableIntStateOf(0) }
-    val settledOffset by animateFloatAsState(
-        targetValue = if (isOpen) actionWidth else 0f,
-        animationSpec = tween(durationMillis = 180),
-        label = "task-swipe-settle",
+    val actionPanelWidth = 228.dp
+    val actionPanelWidthPx = with(density) { actionPanelWidth.toPx() }
+    val anchors = remember(actionPanelWidthPx) {
+        DraggableAnchors {
+            SwipeAnchor.Closed at 0f
+            SwipeAnchor.Open at actionPanelWidthPx
+        }
+    }
+    val swipeState = remember(taskId) { AnchoredDraggableState(initialValue = SwipeAnchor.Closed) }
+    val settleAnimation = remember { tween<Float>(durationMillis = 180) }
+    val flingBehavior = AnchoredDraggableDefaults.flingBehavior(
+        state = swipeState,
+        positionalThreshold = { distance -> distance * 0.40f },
+        animationSpec = settleAnimation,
     )
-    val displayedOffset = if (isDragging) dragOffset else settledOffset
-    val actionHeight = with(density) { cardHeightPx.toDp() }
-    val dragState = rememberDraggableState { delta ->
-        val next = (dragOffset + delta).coerceIn(0f, actionWidth)
-        dragOffset = next
-        if (next > 0f && !isOpen) onOpen()
+    val latestIsOpen by rememberUpdatedState(isOpen)
+    val latestOnOpen by rememberUpdatedState(onOpen)
+    val latestOnClose by rememberUpdatedState(onClose)
+    var cardHeightPx by remember(taskId) { mutableIntStateOf(0) }
+
+    // The parent owns which row is open. Anchors are installed before requesting any settle.
+    LaunchedEffect(isOpen, anchors) {
+        swipeState.updateAnchors(anchors)
+        val requestedAnchor = if (isOpen) SwipeAnchor.Open else SwipeAnchor.Closed
+        if (swipeState.currentValue != requestedAnchor || swipeState.targetValue != requestedAnchor) {
+            swipeState.animateTo(requestedAnchor, animationSpec = settleAnimation)
+        }
     }
 
-    Box(modifier = Modifier.fillMaxWidth().clipToBounds()) {
-        if (displayedOffset > 0.5f && cardHeightPx > 0) {
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+    // Report only after the drag has settled. Parent state therefore changes once per swipe,
+    // not on every movement or as the finger crosses an intermediate threshold.
+    LaunchedEffect(swipeState.settledValue) {
+        when (swipeState.settledValue) {
+            SwipeAnchor.Open -> if (!latestIsOpen) latestOnOpen()
+            SwipeAnchor.Closed -> if (latestIsOpen) latestOnClose()
+        }
+    }
+
+    val offsetPx = swipeState.offset.takeUnless(Float::isNaN) ?: 0f
+    val actionPanelHeight = with(density) { cardHeightPx.toDp() }
+
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        Box(modifier = Modifier.fillMaxWidth().clipToBounds()) {
+            if (offsetPx > 0.5f && cardHeightPx > 0) {
                 Row(
                     modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .width(228.dp)
-                        .height(actionHeight)
-                        .zIndex(0f),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        .align(Alignment.CenterStart)
+                        .width(actionPanelWidth)
+                        .height(actionPanelHeight),
                 ) {
-                    SwipeAction("تعديل", Icons.Outlined.Edit, MaterialTheme.colorScheme.primary, onEdit, Modifier.weight(1f))
-                    SwipeAction("أعلى", Icons.Outlined.PushPin, MaterialTheme.colorScheme.secondary, onPin, Modifier.weight(1f))
-                    SwipeAction("حذف", Icons.Outlined.Delete, MaterialTheme.colorScheme.error, onDelete, Modifier.weight(1f))
+                    SwipeAction(
+                        label = "تعديل",
+                        icon = Icons.Outlined.Edit,
+                        color = MaterialTheme.colorScheme.primary,
+                        onClick = onEdit,
+                        modifier = Modifier.weight(1f),
+                    )
+                    SwipeAction(
+                        label = "أعلى",
+                        icon = Icons.Outlined.PushPin,
+                        color = MaterialTheme.colorScheme.secondary,
+                        onClick = onPin,
+                        modifier = Modifier.weight(1f),
+                    )
+                    SwipeAction(
+                        label = "حذف",
+                        icon = Icons.Outlined.Delete,
+                        color = MaterialTheme.colorScheme.error,
+                        onClick = onDelete,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onSizeChanged { cardHeightPx = it.height }
+                    .offset { IntOffset(offsetPx.roundToInt(), 0) }
+                    .anchoredDraggable(
+                        state = swipeState,
+                        orientation = Orientation.Horizontal,
+                        // Explicitly use physical screen coordinates: right is always open,
+                        // including when Arabic RTL content is inside the card.
+                        reverseDirection = false,
+                        startDragImmediately = false,
+                        flingBehavior = flingBehavior,
+                    )
+                    .zIndex(1f),
+            ) {
+                CompositionLocalProvider(LocalLayoutDirection provides contentLayoutDirection) {
+                    content()
                 }
             }
         }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .zIndex(1f)
-                .onSizeChanged { cardHeightPx = it.height }
-                .offset { IntOffset(displayedOffset.roundToInt(), 0) }
-                .draggable(
-                    state = dragState,
-                    orientation = Orientation.Horizontal,
-                    startDragImmediately = false,
-                    onDragStarted = {
-                        isDragging = true
-                        dragOffset = if (isOpen) actionWidth else 0f
-                    },
-                    onDragStopped = { _ ->
-                        isDragging = false
-                        if (dragOffset >= actionWidth * 0.24f) onOpen() else onClose()
-                    },
-                ),
-        ) { content() }
     }
 }
 
